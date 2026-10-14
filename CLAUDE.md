@@ -37,5 +37,11 @@
   - One-Tap Ultra Boost order: TrimCaches → FreeRam → LogsAndTrim → ArtCompile.
   - `execCommandWithTimeout(cmd, 1..600)` in AIDL; success/failure detected via `ShellMarkers`.
   - Rule: any AIDL change MUST bump `versionCode`, otherwise Shizuku keeps the old UserService process.
-- Phase 3: `CleanerScreen` — deep cleaner.
-- Phase 4: `SorterScreen` — smart file organizer with Dry Run + rollback.
+- Phase 3 (done): `CleanerScreen` + `cleaner/` (`CleanerRepository`, `CleanerViewModel`, `CleanerModels`).
+  - Scan only, delete after explicit confirmation. Categories: orphan Android/data+obb dirs (via Shizuku; installed set = PackageManager incl. uninstalled-with-data + `pm list packages -u`; aborts if < 50 packages), `.thumbnails`, `*.log/*.tmp/*.temp`, topmost empty folders (never `StoragePaths.PROTECTED_DIRS`), duplicates ≥ 1 MB (size → partial hash → SHA-256, oldest copy kept).
+  - Deleted files are reported to MediaScanner.
+- Phase 4 (done): `SorterScreen` + `sorter/` (`SorterRepository`, `SorterViewModel`, `SorterModels`).
+  - Rules in `filesDir/sort_rules.json`, history in `filesDir/sort_history.json` (last 20 batches), kotlinx.serialization.
+  - Only top-level files of the source dir; first matching rule wins; target template {yyyy} {MM} {dd} {ext}; never overwrite (" (1)" suffix); Android/ is off-limits.
+  - Dry Run plan → execute → batch saved even if cancelled → undo restores and removes empty created dirs.
+- Shared: `storage/StoragePaths.kt` (ROOT, PROTECTED_DIRS, resolveInside, uniqueTarget), `ui/components/Common.kt`.
