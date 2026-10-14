@@ -1,0 +1,40 @@
+# UltraCore — Фаза 1
+
+Каркас приложения для Galaxy S25 Ultra: тема AMOLED, мост Shizuku (UID 2000), проверка доступа к файлам, тест shell и три экрана-заглушки под Фазы 2–4. APK собирается в GitHub Actions.
+
+## Как собрать APK (пошагово)
+
+1. Создай на GitHub новый **пустой** репозиторий, например `UltraCore` (без README и .gitignore).
+2. Распакуй архив и залей **содержимое** папки `UltraCore` в репозиторий.
+   - Через git:
+     ```
+     cd UltraCore
+     git init
+     git add .
+     git commit -m "Phase 1: Core & Shizuku AIDL bridge"
+     git branch -M main
+     git remote add origin https://github.com/ТВОЙ_НИК/UltraCore.git
+     git push -u origin main
+     ```
+   - Через сайт: Add file → Upload files → перетащи всё содержимое папки. Проверь, что загрузилась скрытая папка `.github` (в ней файл `workflows/build.yml`) — без неё сборка не запустится.
+3. Открой вкладку **Actions** → сборка «Build UltraCore APK» стартует сама (или кнопкой Run workflow). Идёт ~5–8 минут.
+4. Когда появится зелёная галочка — внизу страницы сборки в разделе **Artifacts** скачай `UltraCore-Android17-Debug` (это zip, внутри `app-debug.apk`).
+
+## Первый запуск на телефоне
+
+1. Установи и запусти **Shizuku** (через «Беспроводную отладку»).
+2. Установи `app-debug.apk`, открой UltraCore.
+3. «Shizuku» → **Разрешить** → подтверди в окне Shizuku.
+4. «Доступ к файлам» → **Выдать доступ к файлам** → включи переключатель → вернись назад.
+5. Нажми **Тест Shell (Android 17)**. Ожидаемо:
+   ```
+   uid=2000(shell) gid=2000(shell) groups=...
+   17
+   S938B...   ← номер прошивки
+   ```
+
+Если сборка в Actions упала — открой упавший шаг, скопируй последние ~50 строк лога и пришли.
+
+## Заметки
+- Debug-сборки подписываются ключом `app/ultracore-debug.keystore` из репозитория, поэтому новые версии ставятся поверх старой без удаления. Не удаляй этот файл.
+- `gradlew` в проекте нет: в облаке Gradle 8.10.2 ставится экшеном `setup-gradle`. Если откроешь проект в Android Studio, она предложит создать wrapper сама.

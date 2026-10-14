@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AMOLED launcher foreground: neon ring + lightning core. Safe zone is the central 66dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer glow ring (soft) -->
+    <path
+        android:pathData="M31,54 A23,23 0 1,0 77,54 A23,23 0 1,0 31,54 Z"
+        android:strokeWidth="6"
+        android:strokeColor="#3300E5FF"
+        android:fillColor="#00000000" />
+
+    <!-- Neon ring -->
+    <path
+        android:pathData="M33,54 A21,21 0 1,0 75,54 A21,21 0 1,0 33,54 Z"
+        android:strokeWidth="3"
+        android:strokeColor="#FF00E5FF"
+        android:fillColor="#00000000" />
+
+    <!-- Lightning core -->
+    <path
+        android:pathData="M57.5,39 L45,56 L52.5,56 L49.5,69 L63,51 L55.5,51 Z"
+        android:fillColor="#FF00E5FF" />
+</vector>

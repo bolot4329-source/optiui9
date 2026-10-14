@@ -1,0 +1,150 @@
+package com.ultracore.app.shizuku
+
+import java.io.File
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
+import kotlin.system.exitProcess
+
+/**
+ * Runs inside a separate process started by Shizuku as UID 2000 (shell).
+ * Shell belongs to the ext_data_rw / ext_obb_rw groups, so it can read and clean
+ * /storage/emulated/0/Android/data and /storage/emulated/0/Android/obb.
+ *
+ * Shizuku creates this class by reflection, so it must keep a public no-arg constructor.
+ */
+class ShellUserService : IShellService.Stub() {
+
+    override fun execCommand(command: String?): String {
+        if (command == null || command.isBlank()) return ""
+        return runShell(command, EXEC_TIMEOUT_SECONDS)
+    }
+
+    override fun listDirectory(path: String?): List<String> {
+        if (path == null || path.isBlank()) return emptyList()
+
+        val children = try {
+            File(path).listFiles()
+        } catch (_: SecurityException) {
+            null
+        }
+        if (children != null) {
+            return children
+                .map { if (it.isDirectory) it.name + "/" else it.name }
+                .sortedBy { it.lowercase() }
+        }
+
+        // Fallback: toybox ls (-p adds "/" to directories, same format as above).
+        return runShell("ls -1Ap -- ${shellQuote(path)}", LIST_TIMEOUT_SECONDS)
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("ls:") && !it.startsWith(MARKER) }
+            .sortedBy { it.lowercase() }
+            .toList()
+    }
+
+    override fun deletePath(path: String?): Boolean {
+        if (path == null || path.isBlank()) return false
+
+        val target = try {
+            File(path).canonicalFile
+        } catch (_: IOException) {
+            return false
+        }
+        if (!isSafeToDelete(target)) return false
+        if (!target.exists()) return true
+
+        if (target.deleteRecursively()) return true
+
+        // Some FUSE paths refuse java.io deletes; fall back to rm.
+        runShell("rm -rf -- ${shellQuote(target.path)}", DELETE_TIMEOUT_SECONDS)
+        return !target.exists()
+    }
+
+    override fun destroy() {
+        exitProcess(0)
+    }
+
+    private fun isSafeToDelete(file: File): Boolean {
+        val p = file.path.trimEnd('/')
+        if (!p.startsWith("$STORAGE_ROOT/")) return false
+        return p !in PROTECTED_PATHS
+    }
+
+    companion object {
+        private const val MARKER = "[UltraCore]"
+        private const val EXEC_TIMEOUT_SECONDS = 60L
+        private const val LIST_TIMEOUT_SECONDS = 20L
+        private const val DELETE_TIMEOUT_SECONDS = 120L
+
+        // Binder transactions are limited to ~1 MB; Strings are UTF-16, so cap output.
+        private const val MAX_OUTPUT_CHARS = 200_000
+
+        private const val STORAGE_ROOT = "/storage/emulated/0"
+
+        private val PROTECTED_PATHS: Set<String> = setOf(
+            STORAGE_ROOT,
+            "$STORAGE_ROOT/Android",
+            "$STORAGE_ROOT/Android/data",
+            "$STORAGE_ROOT/Android/obb",
+            "$STORAGE_ROOT/Android/media",
+            "$STORAGE_ROOT/DCIM",
+            "$STORAGE_ROOT/DCIM/Camera",
+            "$STORAGE_ROOT/Download",
+            "$STORAGE_ROOT/Documents",
+            "$STORAGE_ROOT/Pictures",
+            "$STORAGE_ROOT/Movies",
+            "$STORAGE_ROOT/Music",
+            "$STORAGE_ROOT/Alarms",
+            "$STORAGE_ROOT/Notifications",
+            "$STORAGE_ROOT/Podcasts",
+            "$STORAGE_ROOT/Recordings",
+            "$STORAGE_ROOT/Ringtones",
+        )
+
+        fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+        fun runShell(command: String, timeoutSeconds: Long): String {
+            return try {
+                val process = ProcessBuilder("sh", "-c", command)
+                    .redirectErrorStream(true)
+                    .start()
+                process.outputStream.close()
+
+                val buffer = StringBuffer()
+                val reader = thread(isDaemon = true, name = "ultracore-shell-reader") {
+                    try {
+                        process.inputStream.bufferedReader().use { r ->
+                            val chunk = CharArray(4096)
+                            while (true) {
+                                val n = r.read(chunk)
+                                if (n < 0) break
+                                if (buffer.length < MAX_OUTPUT_CHARS) buffer.append(chunk, 0, n)
+                            }
+                        }
+                    } catch (_: IOException) {
+                        // Stream closed after destroyForcibly(); nothing to do.
+                    }
+                }
+
+                val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+                if (!finished) process.destroyForcibly()
+                reader.join(2_000)
+
+                val result = StringBuilder(buffer.toString().trimEnd())
+                if (buffer.length >= MAX_OUTPUT_CHARS) {
+                    result.append("\n$MARKER Вывод обрезан")
+                }
+                if (!finished) {
+                    result.append("\n$MARKER Команда прервана по тайм-ауту (${timeoutSeconds} с)")
+                } else {
+                    val code = process.exitValue()
+                    if (code != 0) result.append("\n$MARKER Код выхода: $code")
+                }
+                result.toString().trim()
+            } catch (t: Throwable) {
+                "$MARKER Ошибка запуска: ${t.message ?: t.javaClass.simpleName}"
+            }
+        }
+    }
+}
