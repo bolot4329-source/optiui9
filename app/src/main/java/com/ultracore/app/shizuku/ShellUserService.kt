@@ -17,7 +17,13 @@ class ShellUserService : IShellService.Stub() {
 
     override fun execCommand(command: String?): String {
         if (command == null || command.isBlank()) return ""
-        return runShell(command, EXEC_TIMEOUT_SECONDS)
+        return runShell(command, DEFAULT_TIMEOUT_SECONDS)
+    }
+
+    override fun execCommandWithTimeout(command: String?, timeoutSeconds: Int): String {
+        if (command == null || command.isBlank()) return ""
+        val timeout = timeoutSeconds.coerceIn(1, MAX_TIMEOUT_SECONDS).toLong()
+        return runShell(command, timeout)
     }
 
     override fun listDirectory(path: String?): List<String> {
@@ -38,7 +44,7 @@ class ShellUserService : IShellService.Stub() {
         return runShell("ls -1Ap -- ${shellQuote(path)}", LIST_TIMEOUT_SECONDS)
             .lineSequence()
             .map { it.trim() }
-            .filter { it.isNotEmpty() && !it.startsWith("ls:") && !it.startsWith(MARKER) }
+            .filter { it.isNotEmpty() && !it.startsWith("ls:") && !it.startsWith(ShellMarkers.PREFIX) }
             .sortedBy { it.lowercase() }
             .toList()
     }
@@ -72,8 +78,8 @@ class ShellUserService : IShellService.Stub() {
     }
 
     companion object {
-        private const val MARKER = "[UltraCore]"
-        private const val EXEC_TIMEOUT_SECONDS = 60L
+        private const val DEFAULT_TIMEOUT_SECONDS = 60L
+        private const val MAX_TIMEOUT_SECONDS = 600
         private const val LIST_TIMEOUT_SECONDS = 20L
         private const val DELETE_TIMEOUT_SECONDS = 120L
 
@@ -133,17 +139,17 @@ class ShellUserService : IShellService.Stub() {
 
                 val result = StringBuilder(buffer.toString().trimEnd())
                 if (buffer.length >= MAX_OUTPUT_CHARS) {
-                    result.append("\n$MARKER Вывод обрезан")
+                    result.append('\n').append(ShellMarkers.TRUNCATED)
                 }
                 if (!finished) {
-                    result.append("\n$MARKER Команда прервана по тайм-ауту (${timeoutSeconds} с)")
+                    result.append('\n').append(ShellMarkers.TIMEOUT).append(" (").append(timeoutSeconds).append(" с)")
                 } else {
                     val code = process.exitValue()
-                    if (code != 0) result.append("\n$MARKER Код выхода: $code")
+                    if (code != 0) result.append('\n').append(ShellMarkers.EXIT_CODE).append(' ').append(code)
                 }
                 result.toString().trim()
             } catch (t: Throwable) {
-                "$MARKER Ошибка запуска: ${t.message ?: t.javaClass.simpleName}"
+                "${ShellMarkers.LAUNCH_ERROR} ${t.message ?: t.javaClass.simpleName}"
             }
         }
     }

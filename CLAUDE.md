@@ -30,7 +30,12 @@
 - CI signs debug builds with the committed `app/ultracore-debug.keystore` so every new APK installs over the previous one.
 
 ## Phases
-- Phase 1 (done): project skeleton, Shizuku AIDL bridge, status header, CI.
-- Phase 2: `OptimizerScreen` — system optimizer.
+- Phase 1 (done, verified on device: uid=2000, ext_data_rw/ext_obb_rw, S938BXXUCDZIF): project skeleton, Shizuku AIDL bridge, status header, CI.
+- Phase 2 (done): `OptimizerScreen` + `optimizer/` package (`SystemOptimizerRepository`, `OptimizerViewModel`, `OptimizerModels`).
+  - Telemetry: StatFs(/data), /proc/meminfo (RAM, Swap/ZRAM), refreshed every 3 s while STARTED.
+  - Modules: pm trim-caches 999G · am kill-all · logcat -b all -c + sm fstrim · per-package `cmd package compile -m speed-profile -f` (Flow progress, cancellable between packages) · cmd package bg-dexopt-job (600 s).
+  - One-Tap Ultra Boost order: TrimCaches → FreeRam → LogsAndTrim → ArtCompile.
+  - `execCommandWithTimeout(cmd, 1..600)` in AIDL; success/failure detected via `ShellMarkers`.
+  - Rule: any AIDL change MUST bump `versionCode`, otherwise Shizuku keeps the old UserService process.
 - Phase 3: `CleanerScreen` — deep cleaner.
 - Phase 4: `SorterScreen` — smart file organizer with Dry Run + rollback.

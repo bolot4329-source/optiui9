@@ -196,6 +196,14 @@ object ShizukuManager {
         requireService().execCommand(command)
     }
 
+    /** Long-running command (dexopt, compile, fstrim). [timeoutSeconds] is clamped to 1..600 by the service. */
+    suspend fun execWithTimeout(command: String, timeoutSeconds: Int): String = withContext(Dispatchers.IO) {
+        requireService().execCommandWithTimeout(command, timeoutSeconds)
+    }
+
+    val isConnected: Boolean
+        get() = _state.value is ShizukuState.Connected && service != null
+
     suspend fun listDirectory(path: String): List<String> = withContext(Dispatchers.IO) {
         requireService().listDirectory(path) ?: emptyList()
     }
