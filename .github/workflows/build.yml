@@ -2,41 +2,51 @@ name: Build UltraCore APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  build-apk:
+    name: Assemble Debug APK (Android 17 / S25 Ultra)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
 
     steps:
-      - name: Checkout
+      - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: 2. Setup JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 3. Accept Android SDK Licenses (Pre-installed SDK)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Set up Gradle 8.10.2 (no gradle-wrapper.jar needed)
+      - name: 4. Setup Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+          cache-read-only: false
 
-      - name: Build debug APK
+      - name: 5. Build Debug APK
         run: gradle assembleDebug --stacktrace --no-daemon
 
-      - name: Upload APK
+      - name: 6. Rename APK with Commit SHA
+        run: |
+          cd app/build/outputs/apk/debug
+          mv app-debug.apk "UltraCore-S25U-${GITHUB_SHA::7}.apk"
+
+      - name: 7. Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: UltraCore-Android17-Debug
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
           if-no-files-found: error
