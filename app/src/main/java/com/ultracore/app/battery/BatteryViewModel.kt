@@ -58,9 +58,17 @@ class BatteryViewModel(app: Application) : AndroidViewModel(app) {
         val pub = publicPart
         val shell = shellPart
         // Android API first; a shell value is added only if that title is not shown yet.
+        // Exception: some firmware reports 0 through the API (e.g. cycle count) while the
+        // real number is in dumpsys/sysfs — then the non-zero shell value replaces the zero.
         val values = buildList {
             pub?.values?.let { addAll(it) }
-            shell?.values?.forEach { v -> if (none { it.title == v.title }) add(v) }
+            shell?.values?.forEach { v ->
+                val index = indexOfFirst { it.title == v.title }
+                when {
+                    index < 0 -> add(v)
+                    this[index].value.trim() == "0" && v.value.trim() != "0" -> set(index, v)
+                }
+            }
         }
         _passport.update {
             it.copy(

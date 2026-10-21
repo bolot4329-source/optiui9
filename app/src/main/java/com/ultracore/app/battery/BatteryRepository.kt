@@ -101,7 +101,8 @@ class BatteryRepository(context: Context) {
             for ((key, value) in parseKeyValues(dump.stdout)) {
                 val title = recognize(key, value)
                 if (title != null) {
-                    values.add(BatteryValue(title, value, BatterySource.DUMPSYS))
+                    val shown = if (title == TITLE_HEALTH && '%' !in value) "$value %" else value
+                    values.add(BatteryValue(title, shown, BatterySource.DUMPSYS))
                 } else {
                     extras.add(key to value)
                 }
