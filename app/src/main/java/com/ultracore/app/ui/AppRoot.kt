@@ -40,6 +40,7 @@ import androidx.navigation.compose.rememberNavController
 import com.ultracore.app.shizuku.ShizukuManager
 import com.ultracore.app.ui.components.SubTabs
 import com.ultracore.app.ui.components.SystemStatusHeader
+import com.ultracore.app.ui.screens.AppManagerScreen
 import com.ultracore.app.ui.screens.BatteryScreen
 import com.ultracore.app.ui.screens.CleanerScreen
 import com.ultracore.app.ui.screens.HomeScreen
@@ -127,18 +128,7 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
                         if (tab == 0) {
                             LauncherScreen()
                         } else {
-                            PhasePlaceholder(
-                                icon = Icons.Outlined.Apps,
-                                title = "Управление приложениями",
-                                phase = "Фаза 5",
-                                description = "Заморозка, удаление, бэкап и установка приложений.",
-                                plannedFeatures = listOf(
-                                    "Заморозка и разморозка приложений",
-                                    "Удаление системных приложений для пользователя с восстановлением",
-                                    "Бэкап APK и установка .apk / .apks",
-                                    "Песочница: автозаморозка после выключения экрана",
-                                ),
-                            )
+                            AppManagerScreen()
                         }
                     }
                 }

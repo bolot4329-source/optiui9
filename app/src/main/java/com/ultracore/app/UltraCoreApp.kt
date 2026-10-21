@@ -7,5 +7,6 @@ class UltraCoreApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ShizukuManager.init(this)
+        com.ultracore.app.sandbox.SandboxManager.init(this)
     }
 }

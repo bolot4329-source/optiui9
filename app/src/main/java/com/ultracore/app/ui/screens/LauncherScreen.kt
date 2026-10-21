@@ -44,6 +44,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -65,6 +66,7 @@ import com.ultracore.app.launcher.FavoriteActivity
 import com.ultracore.app.launcher.LaunchMode
 import com.ultracore.app.launcher.LauncherFilter
 import com.ultracore.app.launcher.LauncherViewModel
+import com.ultracore.app.ui.components.AppIcon
 import com.ultracore.app.ui.components.InfoBanner
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.AmoledBlack
@@ -77,6 +79,7 @@ import com.ultracore.app.ui.theme.NeonRed
 import com.ultracore.app.ui.theme.TextPrimary
 import com.ultracore.app.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** «Приложения → Экраны»: every app's screens, search, launch, favourites, home-screen shortcuts. */
@@ -91,6 +94,14 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
     val message by viewModel.message.collectAsStateWithLifecycle()
     val rootMode by viewModel.rootMode.collectAsStateWithLifecycle()
     val favoriteKeys = favorites.map { "${it.packageName}/${it.className}" }.toSet()
+
+    // Messages disappear by themselves after a few seconds.
+    LaunchedEffect(message) {
+        if (message != null) {
+            delay(4_000)
+            viewModel.clearMessage()
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
@@ -334,21 +345,6 @@ private fun FavoriteRow(fav: FavoriteActivity, onLaunch: () -> Unit, onShortcut:
             }
             Icon(Icons.Outlined.PlayArrow, contentDescription = null, tint = NeonGreen)
         }
-    }
-}
-
-@Composable
-private fun AppIcon(packageName: String) {
-    val context = LocalContext.current
-    val bitmap by produceState<ImageBitmap?>(null, packageName) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                context.packageManager.getApplicationIcon(packageName).toBitmap(96, 96).asImageBitmap()
-            }.getOrNull()
-        }
-    }
-    Box(Modifier.size(36.dp)) {
-        bitmap?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
     }
 }
 
