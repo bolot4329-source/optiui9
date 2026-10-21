@@ -97,23 +97,25 @@ class AppManagerRepository(context: Context) {
     // ------------------------------------------------------------------ state changes
 
     suspend fun freeze(pkg: String): OpResult =
-        run("pm disable-user --user 0 ${q(pkg)}", okWhen = { "disabled" in it || it.isBlank() })
+        run("pm disable-user --user 0 ${q(pkg)}", pkg, okWhen = { "disabled" in it || it.isBlank() })
 
     suspend fun unfreeze(pkg: String): OpResult =
-        run("pm enable --user 0 ${q(pkg)}", okWhen = { "enabled" in it || it.isBlank() })
+        run("pm enable --user 0 ${q(pkg)}", pkg, okWhen = { "enabled" in it || it.isBlank() })
 
     /** Removes an app for the current user only; the APK stays in the system, so it can be restored. */
     suspend fun uninstallForUser(pkg: String): OpResult =
-        run("pm uninstall -k --user 0 ${q(pkg)}", okWhen = { "success" in it })
+        run("pm uninstall -k --user 0 ${q(pkg)}", pkg, okWhen = { "success" in it })
 
     suspend fun restore(pkg: String): OpResult =
-        run("cmd package install-existing --user 0 ${q(pkg)}", okWhen = { "installed" in it || "success" in it })
+        run("cmd package install-existing --user 0 ${q(pkg)}", pkg, okWhen = { "installed" in it || "success" in it })
 
-    private suspend fun run(command: String, okWhen: (String) -> Boolean): OpResult {
+    private suspend fun run(command: String, pkg: String, okWhen: (String) -> Boolean): OpResult {
         if (!ShizukuManager.isConnected) return OpResult(false, "Shizuku не подключён")
         val r = ShizukuManager.execResult(command, 60)
-        val out = r.combined.lowercase()
-        val failedText = "error" in out || "exception" in out || "failure" in out
+        // The package name is echoed in the output; remove it so names containing
+        // «error» or «failure» are not mistaken for an error.
+        val out = r.combined.replace(pkg, "", ignoreCase = true).lowercase()
+        val failedText = "error:" in out || "exception" in out || "failure [" in out
         return if (r.isSuccess && !failedText && okWhen(out)) {
             OpResult(true, "Готово")
         } else {
@@ -204,8 +206,11 @@ class AppManagerRepository(context: Context) {
             apks.forEachIndexed { index, file ->
                 onStep("Передаю ${index + 1} из ${apks.size}…")
                 val name = file.nameWithoutExtension.replace(Regex("[^A-Za-z0-9._-]"), "_").ifEmpty { "part$index" }
+                // The bytes go through a pipe: shell reads the file (it can read Android/data),
+                // system_server only gets the pipe. Passing the path or a redirected FUSE file
+                // descriptor can be refused by SELinux on Android 14+.
                 val write = ShizukuManager.execResult(
-                    "pm install-write -S ${file.length()} $session ${q(name)} ${q(file.absolutePath)}",
+                    "cat ${q(file.absolutePath)} | pm install-write -S ${file.length()} $session ${q(name)} -",
                     300,
                 )
                 if (!write.isSuccess || "success" !in write.combined.lowercase()) {
@@ -228,24 +233,28 @@ class AppManagerRepository(context: Context) {
         }
     }
 
-    /** Single APK → [input]; archive with .apk files inside → extracted list; otherwise null. */
+    /** Single APK → base.apk; archive with .apk files inside → split_N.apk list; otherwise null. */
     private fun unpack(input: File, dir: File): List<File>? {
-        val zip = runCatching { ZipFile(input) }.getOrNull() ?: return null
-        zip.use { z ->
-            val entries = z.entries().toList()
-            if (entries.any { it.name == "AndroidManifest.xml" }) {
-                val apk = File(dir, "base.apk")
-                input.renameTo(apk)
-                return listOf(apk)
-            }
-            val apkEntries = entries.filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
-            if (apkEntries.isEmpty()) return null
-            return apkEntries.mapIndexed { i, entry ->
-                val out = File(dir, "${i}_" + File(entry.name).name)
-                z.getInputStream(entry).use { src -> out.outputStream().use { src.copyTo(it) } }
-                out
-            }
+        val isSingleApk = runCatching {
+            ZipFile(input).use { it.getEntry("AndroidManifest.xml") != null }
+        }.getOrNull() ?: return null
+        if (isSingleApk) {
+            // The ZipFile is closed before renaming.
+            val apk = File(dir, "base.apk")
+            return listOf(if (input.renameTo(apk)) apk else input)
         }
+        return runCatching {
+            ZipFile(input).use { z ->
+                val apkEntries = z.entries().asSequence()
+                    .filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
+                    .toList()
+                apkEntries.mapIndexed { i, entry ->
+                    val out = File(dir, "split_$i.apk")
+                    z.getInputStream(entry).use { src -> out.outputStream().use { src.copyTo(it) } }
+                    out
+                }
+            }
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
     }
 
     private fun q(value: String) = ShellUserService.shellQuote(value)

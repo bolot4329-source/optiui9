@@ -17,12 +17,12 @@ class MacroTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val macro = MacroStore(this).favorite()
-        if (macro == null) {
-            openApp()
-            return
+        val action = Runnable {
+            val macro = MacroStore(this).favorite()
+            if (macro == null) openApp() else MacroRunner.runInBackground(applicationContext, macro)
         }
-        MacroRunner.runInBackground(applicationContext, macro)
+        // Shell commands must never run from a locked phone: ask to unlock first.
+        if (isLocked) unlockAndRun(action) else action.run()
     }
 
     private fun updateTile() {

@@ -1,6 +1,9 @@
 package com.ultracore.app.shizuku
 
 import android.os.ParcelFileDescriptor
+import android.system.Os
+import android.system.OsConstants
+import android.system.StructPollfd
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -41,19 +44,26 @@ class ShellUserService : IShellService.Stub() {
         val writeSide = pipe[1]
 
         thread(isDaemon = true, name = "ultracore-shell-stream") {
-            var process: Process? = null
+            var started: Started? = null
+            var monitor: Thread? = null
             ParcelFileDescriptor.AutoCloseOutputStream(writeSide).use { out ->
                 try {
-                    process = ProcessBuilder("sh", "-c", command)
-                        .redirectErrorStream(true)
-                        .start()
-                    val p = process!!
-                    p.outputStream.close()
+                    val st = startShell(command, mergeStderr = true)
+                    started = st
+                    val p = st.process
 
-                    // Hard limit so a forgotten command can't run forever.
-                    val watchdog = thread(isDaemon = true, name = "ultracore-stream-watchdog") {
+                    // Kills the command when the app closes its side («Стоп») — even if the command
+                    // prints nothing — or after the 30-minute limit.
+                    monitor = thread(isDaemon = true, name = "ultracore-stream-monitor") {
+                        val deadline = System.currentTimeMillis() + STREAM_MAX_SECONDS * 1_000
                         try {
-                            if (!p.waitFor(STREAM_MAX_SECONDS, TimeUnit.SECONDS)) p.destroyForcibly()
+                            while (p.isAlive) {
+                                if (System.currentTimeMillis() > deadline || readerClosed(writeSide)) {
+                                    killTree(st)
+                                    break
+                                }
+                                Thread.sleep(MONITOR_INTERVAL_MS)
+                            }
                         } catch (_: InterruptedException) {
                             // Command finished normally.
                         }
@@ -61,28 +71,29 @@ class ShellUserService : IShellService.Stub() {
 
                     val buf = ByteArray(4096)
                     var lastByte: Byte = '\n'.code.toByte()
-                    p.inputStream.use { input ->
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n) // throws IOException when the app closed its side
-                            out.flush()
-                            if (n > 0) lastByte = buf[n - 1]
-                        }
+                    val input = p.inputStream
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n) // throws IOException when the app closed its side
+                        out.flush()
+                        if (n > 0) lastByte = buf[n - 1]
                     }
                     val code = p.waitFor()
-                    watchdog.interrupt()
                     // Marker goes on its own line without adding an empty line after the output.
                     val prefix = if (lastByte == '\n'.code.toByte()) "" else "\n"
                     out.write("$prefix${ShellMarkers.EXIT_CODE} $code\n".toByteArray())
                 } catch (_: IOException) {
                     // The app closed the pipe ("Стоп") — kill the command.
-                    process?.destroyForcibly()
+                    started?.let { killTree(it) }
                 } catch (t: Throwable) {
-                    process?.destroyForcibly()
+                    started?.let { killTree(it) }
                     runCatching {
                         out.write("${ShellMarkers.LAUNCH_ERROR} ${t.message ?: t.javaClass.simpleName}\n".toByteArray())
                     }
+                } finally {
+                    monitor?.interrupt()
+                    started?.let { st -> runCatching { st.process.inputStream.close() } }
                 }
             }
         }
@@ -177,13 +188,71 @@ class ShellUserService : IShellService.Stub() {
         // execResult: each of stdout/stderr is capped separately (UTF-16 → ~2 bytes per char).
         private const val MAX_RESULT_CHARS = 120_000
 
+        private const val MONITOR_INTERVAL_MS = 500L
+        private const val PID_MARKER = "@@ULTRACORE_PID@@"
+
+        /** A started `sh` and its pid (needed to kill the whole command, not only `sh`). */
+        class Started(val process: Process, val pid: Int?)
+
+        /**
+         * Starts `sh -c` and reads its pid: the script first prints a marker line with `$$`
+         * to stderr, which is consumed here and never reaches the output.
+         */
+        fun startShell(command: String, mergeStderr: Boolean): Started {
+            val script = "echo $PID_MARKER\$\$ 1>&2\n$command"
+            val process = ProcessBuilder("sh", "-c", script)
+                .redirectErrorStream(mergeStderr)
+                .start()
+            process.outputStream.close()
+            val pidStream = if (mergeStderr) process.inputStream else process.errorStream
+            val pid = readMarkerLine(pidStream)?.removePrefix(PID_MARKER)?.trim()?.toIntOrNull()
+            return Started(process, pid)
+        }
+
+        /** Reads one line byte by byte (no buffering, so the rest of the stream stays intact). */
+        private fun readMarkerLine(stream: java.io.InputStream): String? {
+            val bytes = java.io.ByteArrayOutputStream()
+            while (bytes.size() < 64) {
+                val b = stream.read()
+                if (b < 0) break
+                if (b == '\n'.code) break
+                bytes.write(b)
+            }
+            val line = bytes.toString()
+            return if (line.startsWith(PID_MARKER)) line else null
+        }
+
+        /** Kills the command's children (pipelines, logcat…) and then `sh` itself. */
+        fun killTree(started: Started) {
+            started.pid?.let { pid ->
+                runCatching {
+                    ProcessBuilder("sh", "-c", "pkill -9 -P $pid").start().waitFor(2, TimeUnit.SECONDS)
+                }
+            }
+            runCatching { started.process.destroyForcibly() }
+            runCatching { started.process.inputStream.close() }
+            runCatching { started.process.errorStream.close() }
+        }
+
+        /** True when nobody reads the pipe any more (the app pressed «Стоп» or died). */
+        private fun readerClosed(writeSide: ParcelFileDescriptor): Boolean = try {
+            val poll = StructPollfd().apply {
+                fd = writeSide.fileDescriptor
+                events = OsConstants.POLLOUT.toShort()
+            }
+            Os.poll(arrayOf(poll), 0)
+            (poll.revents.toInt() and (OsConstants.POLLERR or OsConstants.POLLHUP)) != 0
+        } catch (_: Exception) {
+            false
+        }
+
         fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
         /** Runs a command with separate stdout/stderr and a timeout. Never throws. */
         fun runShellResult(command: String, timeoutSeconds: Long): ShellResult {
             return try {
-                val process = ProcessBuilder("sh", "-c", command).start()
-                process.outputStream.close()
+                val started = startShell(command, mergeStderr = false)
+                val process = started.process
 
                 val stdout = StringBuffer()
                 val stderr = StringBuffer()
@@ -191,7 +260,7 @@ class ShellUserService : IShellService.Stub() {
                 val errReader = drain(process.errorStream, stderr, "ultracore-stderr")
 
                 val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-                if (!finished) process.destroyForcibly()
+                if (!finished) killTree(started)
                 outReader.join(2_000)
                 errReader.join(2_000)
 
@@ -233,10 +302,8 @@ class ShellUserService : IShellService.Stub() {
 
         fun runShell(command: String, timeoutSeconds: Long): String {
             return try {
-                val process = ProcessBuilder("sh", "-c", command)
-                    .redirectErrorStream(true)
-                    .start()
-                process.outputStream.close()
+                val started = startShell(command, mergeStderr = true)
+                val process = started.process
 
                 val buffer = StringBuffer()
                 val reader = thread(isDaemon = true, name = "ultracore-shell-reader") {
@@ -246,7 +313,9 @@ class ShellUserService : IShellService.Stub() {
                             while (true) {
                                 val n = r.read(chunk)
                                 if (n < 0) break
-                                if (buffer.length < MAX_OUTPUT_CHARS) buffer.append(chunk, 0, n)
+                                if (buffer.length < MAX_OUTPUT_CHARS) {
+                                    buffer.append(chunk, 0, minOf(n, MAX_OUTPUT_CHARS - buffer.length))
+                                }
                             }
                         }
                     } catch (_: IOException) {
@@ -255,7 +324,7 @@ class ShellUserService : IShellService.Stub() {
                 }
 
                 val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-                if (!finished) process.destroyForcibly()
+                if (!finished) killTree(started)
                 reader.join(2_000)
 
                 val result = StringBuilder(buffer.toString().trimEnd())

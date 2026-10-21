@@ -39,7 +39,6 @@ class SandboxService : Service() {
                 Intent.ACTION_SCREEN_ON -> {
                     // The user came back before the delay ended — keep the apps open.
                     freezeJob?.cancel()
-                    freezeJob = null
                 }
             }
         }
@@ -66,11 +65,14 @@ class SandboxService : Service() {
             return START_NOT_STICKY
         }
         updateNotification()
+        // Restarted by the system while the screen is already off: SCREEN_OFF will not come again.
+        if (!SandboxManager.isScreenOn()) scheduleFreeze()
         return START_STICKY
     }
 
     private fun scheduleFreeze() {
-        if (freezeJob?.isActive == true) return
+        // A new SCREEN_OFF restarts the countdown; the old job is cancelled first.
+        freezeJob?.cancel()
         freezeJob = scope.launch {
             val delaySeconds = SandboxManager.state.value.delaySeconds.coerceIn(0, 600)
             val power = getSystemService(PowerManager::class.java)

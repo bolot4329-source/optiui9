@@ -2,6 +2,7 @@ package com.ultracore.app.sandbox
 
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import com.ultracore.app.manager.AppManagerRepository
 import com.ultracore.app.manager.OpResult
 import com.ultracore.app.shizuku.ShellUserService
@@ -10,7 +11,9 @@ import com.ultracore.app.shizuku.ShizukuState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -40,7 +43,11 @@ object SandboxManager {
         repository = AppManagerRepository(appContext)
         scope.launch {
             ShizukuManager.state.collect { s ->
-                if (s is ShizukuState.Connected && store.state.value.pending.isNotEmpty()) freezePending()
+                if (s is ShizukuState.Connected && store.state.value.pending.isNotEmpty()) {
+                    // Shizuku came back: freeze leftovers only if the screen is off,
+                    // otherwise the user may be using the app right now — let the service wait.
+                    if (isScreenOn()) SandboxService.start(appContext) else freezePending()
+                }
             }
         }
     }
@@ -65,11 +72,19 @@ object SandboxManager {
 
     /** Unfreeze → open → remember to freeze after the screen goes off. */
     suspend fun launch(context: Context, pkg: String): OpResult {
-        if (!awaitShizuku()) return OpResult(false, "Shizuku не подключён — запустите Shizuku")
-        val unfreeze = repository.unfreeze(pkg)
-        if (!unfreeze.ok) return unfreeze
+        // Start the service first, while the calling screen is surely in the foreground:
+        // Android 14+ refuses to start foreground services from the background.
         store.update { it.copy(pending = (it.pending + pkg).distinct()) }
         SandboxService.start(context)
+        if (!awaitShizuku()) {
+            undoPending(pkg)
+            return OpResult(false, "Shizuku не подключён — запустите Shizuku")
+        }
+        val unfreeze = repository.unfreeze(pkg)
+        if (!unfreeze.ok) {
+            undoPending(pkg)
+            return unfreeze
+        }
 
         // The launcher entry may appear a moment after enabling.
         var intent: Intent? = null
@@ -91,11 +106,22 @@ object SandboxManager {
         }
     }
 
-    /** Freezes every pending app. Returns how many are still pending. */
+    private fun undoPending(pkg: String) {
+        store.update { it.copy(pending = it.pending - pkg) }
+        if (store.state.value.pending.isEmpty()) SandboxService.stop(appContext)
+    }
+
+    fun isScreenOn(): Boolean =
+        appContext.getSystemService(PowerManager::class.java)?.isInteractive ?: true
+
+    /** Freezes every pending app while the screen stays off. Returns how many are still pending. */
     suspend fun freezePending(): Int {
         freezeMutex.withLock {
             if (!ShizukuManager.isConnected) return store.state.value.pending.size
             for (pkg in store.state.value.pending) {
+                // Screen on again (or the job was cancelled by SCREEN_ON) — stop right here.
+                currentCoroutineContext().ensureActive()
+                if (isScreenOn()) break
                 val r = repository.freeze(pkg)
                 if (r.ok || pkg !in store.state.value.packages) {
                     store.update { it.copy(pending = it.pending - pkg) }

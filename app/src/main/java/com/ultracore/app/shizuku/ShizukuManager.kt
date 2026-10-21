@@ -14,6 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import rikka.shizuku.Shizuku
@@ -47,6 +50,7 @@ object ShizukuManager {
 
     @Volatile
     private var service: IShellService? = null
+    @Volatile
     private var bound = false
     private var initialized = false
     private var appContext: Context? = null
@@ -84,6 +88,8 @@ object ShizukuManager {
                 } else {
                     ShizukuMode.ADB
                 }
+                // The service may have died while `id` was running.
+                if (service !== shell) return@launch
                 _state.value = ShizukuState.Connected(uidInfo, mode)
             }
         }
@@ -250,7 +256,21 @@ object ShizukuManager {
      * Never throws for shell errors; throws only when Shizuku is not connected.
      */
     suspend fun execResult(command: String, timeoutSeconds: Int = 60): ShellResult = withContext(Dispatchers.IO) {
-        requireService().execResult(command, timeoutSeconds)
+        try {
+            requireService().execResult(command, timeoutSeconds)
+        } catch (t: Throwable) {
+            // Shizuku died during the call (DeadObjectException) or is not connected:
+            // report it as a failed command instead of crashing the app.
+            Log.w(TAG, "execResult failed", t)
+            if (t !is IllegalStateException) withContext(Dispatchers.Main) { refresh() }
+            ShellResult(
+                exitCode = ShellResult.CODE_LAUNCH_ERROR,
+                stdout = "",
+                stderr = "Shizuku: ${t.message ?: t.javaClass.simpleName}",
+                truncated = false,
+                timedOut = false,
+            )
+        }
     }
 
     /**
@@ -261,12 +281,39 @@ object ShizukuManager {
     fun stream(command: String): Flow<String> = flow {
         val pfd: ParcelFileDescriptor = requireService().execStream(command)
             ?: throw IllegalStateException("Пустая команда")
-        ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { reader ->
-            while (true) {
-                currentCoroutineContext().ensureActive()
-                val line = reader.readLine() ?: break
-                emit(line)
+        // readLine() blocks and ignores coroutine cancellation. A watcher child coroutine is
+        // cancelled immediately with the parent and closes the descriptor, which unblocks the read;
+        // the service then sees the closed pipe and kills the command.
+        coroutineScope {
+            val watcher = launch {
+                try {
+                    awaitCancellation()
+                } finally {
+                    runCatching { pfd.close() }
+                }
+            }
+            try {
+                readLines(pfd)
+            } finally {
+                watcher.cancel()
+                runCatching { pfd.close() }
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    private suspend fun FlowCollector<String>.readLines(pfd: ParcelFileDescriptor) {
+        ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { reader ->
+            while (true) {
+                currentCoroutineContext().ensureActive()
+                val line = try {
+                    reader.readLine() ?: break
+                } catch (e: java.io.IOException) {
+                    // Closed by the watcher on «Стоп»: report cancellation, not an I/O error.
+                    currentCoroutineContext().ensureActive()
+                    throw e
+                }
+                emit(line)
+            }
+        }
+    }
 }

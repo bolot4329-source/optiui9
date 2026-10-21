@@ -43,7 +43,7 @@ object ActivityLauncher {
         if (!awaitShizuku()) return LaunchResult(false, "Shizuku не подключён — запустите Shizuku")
         val cmd = "am start -n " + ShellUserService.shellQuote("$packageName/$className")
         val result = ShizukuManager.execResult(cmd, 20)
-        return if (isAmStartSuccess(result)) {
+        return if (isAmStartSuccess(result, packageName, className)) {
             LaunchResult(true, "Открыто через Shizuku")
         } else {
             val e = ErrorClassifier.classify(failure(result))
@@ -66,11 +66,17 @@ object ActivityLauncher {
         false
     }
 
-    /** `am start` prints errors but often exits with 0. */
-    private fun isAmStartSuccess(r: ShellResult): Boolean {
+    /**
+     * `am start` prints errors but often exits with 0. The component name is removed first,
+     * so a screen called e.g. «ErrorActivity» is not mistaken for a failure.
+     */
+    private fun isAmStartSuccess(r: ShellResult, pkg: String, cls: String): Boolean {
         if (!r.isSuccess) return false
-        val text = r.combined.lowercase()
-        return "error" !in text && "exception" !in text
+        val text = r.combined
+            .replace(cls, "", ignoreCase = true)
+            .replace(pkg, "", ignoreCase = true)
+            .lowercase()
+        return "error:" !in text && "error type" !in text && "exception" !in text
     }
 
     private fun failure(r: ShellResult): ShellResult =
