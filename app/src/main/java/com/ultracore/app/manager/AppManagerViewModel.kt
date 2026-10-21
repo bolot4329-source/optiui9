@@ -54,6 +54,9 @@ class AppManagerViewModel(app: Application) : AndroidViewModel(app) {
 
     val sandbox: StateFlow<SandboxState> = SandboxManager.state
 
+    /** What UltraCore changed (for badges and «Вернуть всё»). */
+    val changes: StateFlow<AppChanges> = AppChangeStore.state
+
     val connected: StateFlow<Boolean> = ShizukuManager.state
         .map { it is ShizukuState.Connected }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ShizukuManager.isConnected)
@@ -68,7 +71,7 @@ class AppManagerViewModel(app: Application) : AndroidViewModel(app) {
             val byFilter = when (f) {
                 AppFilter.USER -> !a.isSystem && a.installed
                 AppFilter.SYSTEM -> a.isSystem && a.installed
-                AppFilter.FROZEN -> !a.enabled && a.installed
+                AppFilter.FROZEN -> (!a.enabled || a.suspended) && a.installed
                 AppFilter.REMOVED -> !a.installed
                 AppFilter.SANDBOX -> a.packageName in sb.packages
             }
@@ -123,7 +126,8 @@ class AppManagerViewModel(app: Application) : AndroidViewModel(app) {
             targets.forEachIndexed { index, app ->
                 _busy.value = "${op.title}: ${index + 1} из ${targets.size}"
                 val skip = when {
-                    op in setOf(BatchOp.FREEZE, BatchOp.UNINSTALL) && app.protectedReason != null ->
+                    op in setOf(BatchOp.FREEZE, BatchOp.UNINSTALL, BatchOp.SUSPEND, BatchOp.RESTRICT_BG) &&
+                        app.protectedReason != null ->
                         "защищено: ${app.protectedReason}"
                     op == BatchOp.UNINSTALL && !app.isSystem ->
                         "это обычное приложение — удалите его через «Удалить» в настройках телефона"
@@ -136,6 +140,10 @@ class AppManagerViewModel(app: Application) : AndroidViewModel(app) {
                 val r = when (op) {
                     BatchOp.FREEZE -> repository.freeze(app.packageName)
                     BatchOp.UNFREEZE -> repository.unfreeze(app.packageName)
+                    BatchOp.SUSPEND -> repository.suspendApp(app.packageName)
+                    BatchOp.UNSUSPEND -> repository.unsuspendApp(app.packageName)
+                    BatchOp.RESTRICT_BG -> repository.restrictBackground(app.packageName)
+                    BatchOp.ALLOW_BG -> repository.allowBackground(app.packageName)
                     BatchOp.UNINSTALL -> repository.uninstallForUser(app.packageName)
                     BatchOp.RESTORE -> repository.restore(app.packageName)
                     BatchOp.BACKUP -> repository.backup(app).also { if (it.ok) lastPath = it.message }
@@ -147,6 +155,7 @@ class AppManagerViewModel(app: Application) : AndroidViewModel(app) {
             val note = when {
                 op == BatchOp.BACKUP && done > 0 -> "Файлы в папке Download/UltraCore/Backups" + (lastPath?.let { "\n$it" } ?: "")
                 op == BatchOp.UNINSTALL && done > 0 -> "Вернуть можно во вкладке «Удалённые» → «Восстановить»"
+                op == BatchOp.RESTRICT_BG && done > 0 -> "Приложения не будут работать в фоне, но уведомления продолжат приходить"
                 else -> null
             }
             _report.value = BatchReport(op.verb, done, failures, note)
@@ -181,6 +190,131 @@ class AppManagerViewModel(app: Application) : AndroidViewModel(app) {
     fun launchSandboxed(pkg: String) = single("Запуск") { SandboxManager.launch(getApplication(), pkg) }
 
     fun setSandboxDelay(seconds: Int) = SandboxManager.setDelay(seconds)
+
+    fun setSandboxMode(mode: String) = SandboxManager.setMode(mode)
+
+    fun wakeAllSandbox() = longTask("Разморозить все") { SandboxManager.wakeAll() }
+
+    fun sleepAllSandbox() = longTask("Заморозить все") { SandboxManager.sleepAll() }
+
+    /** Undoes everything UltraCore changed in apps. */
+    fun revertAll() {
+        if (_busy.value != null) return
+        viewModelScope.launch {
+            _busy.value = "Возвращаю…"
+            val r = ChangeReverter.revertApps(repository) { _busy.value = it }
+            _busy.value = null
+            _report.value = BatchReport("Возвращено", r.done, r.failures)
+            refresh()
+        }
+    }
+
+    // ------------------------------------------------------------------ export / import
+
+    private val profileJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; prettyPrint = true }
+
+    /** Current list of UltraCore's changes + sandbox, as a portable profile. */
+    fun exportProfile(uri: Uri) {
+        val c = AppChangeStore.state.value
+        val profile = UltraCoreProfile(
+            frozen = c.frozen,
+            suspended = c.suspended,
+            removed = c.removed,
+            restricted = c.restricted.keys.toList(),
+            sandbox = SandboxManager.state.value.packages,
+        )
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
+                        it.write(profileJson.encodeToString(UltraCoreProfile.serializer(), profile).toByteArray())
+                    } != null
+                }.getOrDefault(false)
+            }
+            _report.value = if (ok) {
+                BatchReport("Список сохранён", profile.total, emptyList(), "Приложений в списке: ${profile.total}")
+            } else {
+                BatchReport("Экспорт", 0, listOf("Файл" to "Не удалось записать файл"))
+            }
+        }
+    }
+
+    private val _pendingImport = MutableStateFlow<UltraCoreProfile?>(null)
+    val pendingImport: StateFlow<UltraCoreProfile?> = _pendingImport.asStateFlow()
+
+    fun readProfile(uri: Uri) {
+        viewModelScope.launch {
+            val profile = withContext(Dispatchers.IO) {
+                runCatching {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use {
+                        profileJson.decodeFromString(UltraCoreProfile.serializer(), it.readBytes().decodeToString())
+                    }
+                }.getOrNull()
+            }
+            if (profile == null || profile.format != UltraCoreProfile.FORMAT) {
+                _report.value = BatchReport("Импорт", 0, listOf("Файл" to "Это не список UltraCore"))
+            } else {
+                _pendingImport.value = profile
+            }
+        }
+    }
+
+    fun cancelImport() {
+        _pendingImport.value = null
+    }
+
+    /** Applies an imported profile; apps missing on this phone and protected apps are skipped. */
+    fun applyImport() {
+        val profile = _pendingImport.value ?: return
+        _pendingImport.value = null
+        if (_busy.value != null) return
+        viewModelScope.launch {
+            val failures = mutableListOf<Pair<String, String>>()
+            var done = 0
+            val steps = profile.removed.map { it to BatchOp.UNINSTALL } +
+                profile.frozen.map { it to BatchOp.FREEZE } +
+                profile.suspended.map { it to BatchOp.SUSPEND } +
+                profile.restricted.map { it to BatchOp.RESTRICT_BG }
+            steps.forEachIndexed { i, (pkg, op) ->
+                _busy.value = "Применяю: ${i + 1} из ${steps.size + profile.sandbox.size}"
+                val app = app(pkg)
+                val r = when {
+                    app == null -> OpResult(false, "нет на этом телефоне")
+                    app.protectedReason != null -> OpResult(false, "защищено: ${app.protectedReason}")
+                    op == BatchOp.UNINSTALL && !app.installed -> OpResult(true, "уже удалено")
+                    op == BatchOp.UNINSTALL -> repository.uninstallForUser(pkg)
+                    op == BatchOp.FREEZE -> repository.freeze(pkg)
+                    op == BatchOp.SUSPEND -> repository.suspendApp(pkg)
+                    else -> repository.restrictBackground(pkg)
+                }
+                if (r.ok) done++ else failures += (app?.label ?: pkg) to "${op.title}: ${r.message}"
+            }
+            profile.sandbox.forEachIndexed { i, pkg ->
+                _busy.value = "Песочница: ${i + 1} из ${profile.sandbox.size}"
+                val app = app(pkg)
+                val r = when {
+                    app == null -> OpResult(false, "нет на этом телефоне")
+                    app.protectedReason != null -> OpResult(false, "защищено: ${app.protectedReason}")
+                    else -> SandboxManager.add(pkg)
+                }
+                if (r.ok) done++ else failures += (app?.label ?: pkg) to "Песочница: ${r.message}"
+            }
+            _busy.value = null
+            _report.value = BatchReport("Список применён", done, failures)
+            refresh()
+        }
+    }
+
+    private fun longTask(title: String, action: suspend () -> List<Pair<String, String>>) {
+        if (_busy.value != null) return
+        viewModelScope.launch {
+            _busy.value = "$title…"
+            val failures = runCatching { action() }.getOrElse { listOf(title to (it.message ?: "Ошибка")) }
+            _busy.value = null
+            if (failures.isNotEmpty()) _report.value = BatchReport(title, 0, failures)
+            refresh()
+        }
+    }
 
     fun pinSandboxShortcut(pkg: String, label: String) {
         val context = getApplication<Application>()

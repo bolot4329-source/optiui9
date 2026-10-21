@@ -24,6 +24,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -139,6 +147,10 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
         }
 
         item {
+            DnsCard(state, viewModel)
+        }
+
+        item {
             Text(
                 "Очистка кэша приложений — на вкладке «Оптимизация».",
                 style = MaterialTheme.typography.bodySmall,
@@ -146,6 +158,66 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun DnsCard(state: TweaksState, viewModel: TweaksViewModel) {
+    var host by rememberSaveable(state.dnsHost) { mutableStateOf(state.dnsHost.orEmpty()) }
+    val busy = TweakId.DNS in state.busy
+    val enabled = state.connected && !busy
+    val current = when (state.dnsMode) {
+        "off" -> "выключен"
+        "hostname" -> "сервер ${state.dnsHost.orEmpty()}"
+        null, "opportunistic" -> "автоматически"
+        else -> state.dnsMode
+    }
+    TweakCard(
+        title = "Частный DNS",
+        description = "Защищённый DNS для всего телефона. С сервером AdGuard реклама блокируется во всех приложениях и браузерах. Сейчас: $current.",
+        id = TweakId.DNS,
+        state = state,
+        onReset = viewModel::resetDns,
+    ) {
+        Options(
+            options = listOf("off", "opportunistic"),
+            selected = state.dnsMode?.takeIf { it != "hostname" } ?: if (state.dnsMode == null) "opportunistic" else null,
+            label = { if (it == "off") "Выкл." else "Авто" },
+            enabled = enabled,
+            onSelect = viewModel::setDnsMode,
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = host,
+            onValueChange = { host = it.trim() },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = state.connected,
+            label = { Text("Свой сервер (DNS-over-TLS)") },
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = NeonCyan, unfocusedBorderColor = CardBorder, cursorColor = NeonCyan),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            TweaksRepository.DNS_PRESETS.forEach { (preset, label) ->
+                TextButton(onClick = { host = preset }) { Text(label, color = NeonCyan, fontSize = 12.sp) }
+            }
+        }
+        Button(
+            onClick = { viewModel.setDnsHost(host) },
+            enabled = enabled && host.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = NeonCyan,
+                contentColor = AmoledBlack,
+                disabledContainerColor = CardBorder,
+                disabledContentColor = TextSecondary,
+            ),
+        ) { Text("Использовать этот сервер", fontWeight = FontWeight.Bold) }
     }
 }
 

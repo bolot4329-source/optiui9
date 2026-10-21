@@ -6,6 +6,8 @@ data class ManagedApp(
     val isSystem: Boolean,
     /** false = frozen (`pm disable-user`). */
     val enabled: Boolean,
+    /** true = paused (`pm suspend`): icon stays (grey), widgets stay, the app cannot run. */
+    val suspended: Boolean,
     /** false = removed for this user (`pm uninstall -k --user 0`), can be restored. */
     val installed: Boolean,
     val versionName: String,
@@ -18,7 +20,7 @@ data class ManagedApp(
 enum class AppFilter(val title: String) {
     USER("Пользовательские"),
     SYSTEM("Системные"),
-    FROZEN("Замороженные"),
+    FROZEN("Замороженные / на паузе"),
     REMOVED("Удалённые"),
     SANDBOX("Песочница"),
 }
@@ -26,6 +28,10 @@ enum class AppFilter(val title: String) {
 enum class BatchOp(val title: String, val verb: String) {
     FREEZE("Заморозить", "Заморожено"),
     UNFREEZE("Разморозить", "Разморожено"),
+    SUSPEND("Пауза", "Поставлено на паузу"),
+    UNSUSPEND("Снять паузу", "Пауза снята"),
+    RESTRICT_BG("Ограничить фон", "Фон ограничен"),
+    ALLOW_BG("Разрешить фон", "Фон разрешён"),
     UNINSTALL("Удалить для пользователя", "Удалено"),
     RESTORE("Восстановить", "Восстановлено"),
     BACKUP("Бэкап APK", "Сохранено"),

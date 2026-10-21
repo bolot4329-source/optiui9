@@ -89,19 +89,17 @@ class OptimizerViewModel : ViewModel() {
         }
     }
 
-    /** One-Tap Ultra Boost: cache → RAM → logs+TRIM → ART compile. */
+    /** One tap = only what really helps: TRIM of the storage → background app optimization. */
     fun runUltraBoost() {
         if (_running.value != null) return
         val steps = listOf(
-            OptimizerTool.TrimCaches,
-            OptimizerTool.FreeRam,
-            OptimizerTool.LogsAndTrim,
-            OptimizerTool.ArtCompile,
+            OptimizerTool.Trim,
+            OptimizerTool.DexoptJob,
         )
         job = viewModelScope.launch {
             _boostSummary.value = null
             val collected = mutableListOf<OptimizationResult>()
-            repository.note("▶ Полная оптимизация: старт")
+            repository.note("▶ Обслуживание: старт")
             try {
                 steps.forEachIndexed { index, tool ->
                     _running.value = RunningState(
@@ -112,9 +110,9 @@ class OptimizerViewModel : ViewModel() {
                     saveResult(result)
                     collected += result
                 }
-                repository.note("■ Полная оптимизация завершена")
+                repository.note("■ Обслуживание завершено")
             } catch (e: CancellationException) {
-                repository.note("Полная оптимизация остановлена пользователем${progressSuffix()}", success = false)
+                repository.note("Обслуживание остановлено пользователем${progressSuffix()}", success = false)
                 throw e
             } finally {
                 _boostSummary.value = collected.toList()
@@ -131,8 +129,7 @@ class OptimizerViewModel : ViewModel() {
 
     private suspend fun runModule(tool: OptimizerTool): OptimizationResult = when (tool) {
         OptimizerTool.TrimCaches -> repository.trimCaches()
-        OptimizerTool.FreeRam -> repository.freeRam()
-        OptimizerTool.LogsAndTrim -> repository.clearLogsAndTrim()
+        OptimizerTool.Trim -> repository.trim()
         OptimizerTool.DexoptJob -> repository.runDexoptJob()
         OptimizerTool.ArtCompile -> runCompile()
     }

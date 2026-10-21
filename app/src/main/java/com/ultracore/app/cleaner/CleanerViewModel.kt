@@ -47,8 +47,10 @@ class CleanerViewModel(application: Application) : AndroidViewModel(application)
                 val result = repository.scan { progress ->
                     _state.value = CleanerUiState.Scanning(progress)
                 }
-                // Everything found is pre-selected; the user can uncheck before deleting.
-                _selected.value = result.allItems.map { it.path }.toSet()
+                // Only leftovers of uninstalled apps are pre-selected: they are real junk.
+                // Thumbnails, logs, empty folders and duplicates give little benefit (or need a look
+                // first), so the user ticks them consciously.
+                _selected.value = result.items[JunkCategory.OrphanData].orEmpty().map { it.path }.toSet()
                 _expanded.value = emptySet()
                 _state.value = CleanerUiState.Results(result)
             } catch (e: CancellationException) {

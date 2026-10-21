@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
@@ -37,6 +38,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,12 +65,15 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ultracore.app.manager.AppChanges
 import com.ultracore.app.manager.AppFilter
 import com.ultracore.app.manager.AppManagerViewModel
 import com.ultracore.app.manager.BatchOp
 import com.ultracore.app.manager.BatchReport
 import com.ultracore.app.manager.InstallOptions
 import com.ultracore.app.manager.ManagedApp
+import com.ultracore.app.manager.UltraCoreProfile
+import com.ultracore.app.sandbox.SandboxState
 import com.ultracore.app.ui.components.AppIcon
 import com.ultracore.app.ui.components.InfoBanner
 import com.ultracore.app.ui.components.UltraCard
@@ -93,6 +99,17 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
     val report by viewModel.report.collectAsStateWithLifecycle()
     val sandbox by viewModel.sandbox.collectAsStateWithLifecycle()
     val connected by viewModel.connected.collectAsStateWithLifecycle()
+    val changes by viewModel.changes.collectAsStateWithLifecycle()
+    val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
+
+    var menuOpen by remember { mutableStateOf(false) }
+    var confirmRevert by remember { mutableStateOf(false) }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let(viewModel::exportProfile)
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::readProfile)
+    }
 
     var actionsFor by remember { mutableStateOf<String?>(null) }
     var confirmBatch by remember { mutableStateOf<BatchOp?>(null) }
@@ -138,6 +155,27 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                             Icon(Icons.Outlined.Refresh, contentDescription = "Обновить", tint = NeonCyan)
                         }
                     }
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "Ещё", tint = TextPrimary)
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Экспорт списка изменений") },
+                                onClick = { menuOpen = false; exportLauncher.launch("ultracore-profile.json") },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Импорт списка") },
+                                enabled = connected,
+                                onClick = { menuOpen = false; importLauncher.launch(arrayOf("application/json", "*/*")) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Вернуть всё, что изменил UltraCore", color = NeonAmber) },
+                                enabled = connected,
+                                onClick = { menuOpen = false; confirmRevert = true },
+                            )
+                        }
+                    }
                 }
             }
             item {
@@ -154,7 +192,13 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                     SandboxSettings(
                         delaySeconds = sandbox.delaySeconds,
                         pendingCount = sandbox.pending.size,
+                        mode = sandbox.mode,
+                        hasApps = sandbox.packages.isNotEmpty(),
+                        enabled = connected && busy == null,
                         onDelay = viewModel::setSandboxDelay,
+                        onMode = viewModel::setSandboxMode,
+                        onWakeAll = viewModel::wakeAllSandbox,
+                        onSleepAll = viewModel::sleepAllSandbox,
                     )
                 }
                 AppFilter.REMOVED -> item {
@@ -187,6 +231,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                     app = app,
                     checked = app.packageName in selected,
                     inSandbox = app.packageName in sandbox.packages,
+                    bgRestricted = app.packageName in changes.restricted,
                     onCheck = { viewModel.toggleSelected(app.packageName) },
                     onClick = { actionsFor = app.packageName },
                 )
@@ -226,6 +271,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
             AppActionsDialog(
                 app = app,
                 inSandbox = pkg in sandbox.packages,
+                bgRestricted = pkg in changes.restricted,
                 connected = connected,
                 onDismiss = { actionsFor = null },
                 onOp = { op -> actionsFor = null; viewModel.batch(op, listOf(pkg)) },
@@ -245,6 +291,8 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                 Text(
                     when (op) {
                         BatchOp.FREEZE -> "Приложения перестанут запускаться и пропадут с рабочего стола, пока вы их не разморозите. Защищённые будут пропущены."
+                        BatchOp.SUSPEND -> "Иконки станут серыми, виджеты и данные останутся, но приложения не смогут работать и присылать уведомления. Защищённые будут пропущены."
+                        BatchOp.RESTRICT_BG -> "Приложения не смогут работать в фоне и попадут в самый строгий режим энергосбережения. Push-уведомления продолжат приходить. Защищённые будут пропущены."
                         BatchOp.UNINSTALL -> "Системные приложения будут удалены только для вас. Их можно вернуть во вкладке «Удалённые». Обычные приложения и защищённые будут пропущены."
                         BatchOp.BACKUP -> "APK будут сохранены в Download/UltraCore/Backups."
                         else -> "Продолжить?"
@@ -271,7 +319,58 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
         )
     }
 
+    if (confirmRevert) {
+        AlertDialog(
+            onDismissRequest = { confirmRevert = false },
+            title = { Text("Вернуть всё?") },
+            text = {
+                Text(
+                    "UltraCore разморозит, снимет паузу, восстановит удалённые системные приложения, " +
+                        "разрешит фон и очистит песочницу — всё, что он изменил (с версии 2.1).\n\n${describe(changes)}",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmRevert = false; viewModel.revertAll() }) { Text("Вернуть", color = NeonAmber) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRevert = false }) { Text("Отмена") } },
+        )
+    }
+
+    pendingImport?.let { profile -> ImportDialog(profile, onApply = viewModel::applyImport, onDismiss = viewModel::cancelImport) }
+
     report?.let { ReportDialog(it, viewModel::dismissReport) }
+}
+
+private fun describe(c: AppChanges): String =
+    if (c.isEmpty) {
+        "Сейчас в списке изменений ничего нет."
+    } else {
+        "Заморожено: ${c.frozen.size} · на паузе: ${c.suspended.size} · удалено: ${c.removed.size} · фон ограничен: ${c.restricted.size}"
+    }
+
+@Composable
+private fun ImportDialog(profile: UltraCoreProfile, onApply: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Применить список?") },
+        text = {
+            Column {
+                Text("Заморозить: ${profile.frozen.size}")
+                Text("Поставить на паузу: ${profile.suspended.size}")
+                Text("Удалить для пользователя: ${profile.removed.size}")
+                Text("Ограничить фон: ${profile.restricted.size}")
+                Text("В песочницу: ${profile.sandbox.size}")
+                Text(
+                    "Приложения, которых нет на этом телефоне, и защищённые будут пропущены. Всё можно вернуть через «Вернуть всё».",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onApply) { Text("Применить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
 }
 
 @Composable
@@ -289,7 +388,14 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppRow(app: ManagedApp, checked: Boolean, inSandbox: Boolean, onCheck: () -> Unit, onClick: () -> Unit) {
+private fun AppRow(
+    app: ManagedApp,
+    checked: Boolean,
+    inSandbox: Boolean,
+    bgRestricted: Boolean,
+    onCheck: () -> Unit,
+    onClick: () -> Unit,
+) {
     UltraCard(Modifier.clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
@@ -312,6 +418,8 @@ private fun AppRow(app: ManagedApp, checked: Boolean, inSandbox: Boolean, onChec
                 val badges = buildList {
                     if (!app.installed) add("удалено" to NeonRed)
                     else if (!app.enabled) add("❄ заморожено" to NeonCyan)
+                    if (app.installed && app.suspended) add("⏸ на паузе" to NeonCyan)
+                    if (bgRestricted) add("🔋 фон ограничен" to NeonAmber)
                     if (inSandbox) add("песочница" to NeonAmber)
                     if (app.protectedReason != null) add("🛡 защищено" to NeonGreen)
                 }
@@ -348,7 +456,10 @@ private fun SelectionBar(
             val ops = if (filter == AppFilter.REMOVED) {
                 listOf(BatchOp.RESTORE)
             } else {
-                listOf(BatchOp.FREEZE, BatchOp.UNFREEZE, BatchOp.BACKUP, BatchOp.UNINSTALL)
+                listOf(
+                    BatchOp.SUSPEND, BatchOp.UNSUSPEND, BatchOp.FREEZE, BatchOp.UNFREEZE,
+                    BatchOp.RESTRICT_BG, BatchOp.ALLOW_BG, BatchOp.BACKUP, BatchOp.UNINSTALL,
+                )
             }
             Row(
                 Modifier.horizontalScroll(rememberScrollState()),
@@ -372,6 +483,7 @@ private fun SelectionBar(
 private fun AppActionsDialog(
     app: ManagedApp,
     inSandbox: Boolean,
+    bgRestricted: Boolean,
     connected: Boolean,
     onDismiss: () -> Unit,
     onOp: (BatchOp) -> Unit,
@@ -404,9 +516,19 @@ private fun AppActionsDialog(
                         ActionButton("Убрать из песочницы (разморозить)", enabled = connected, onClick = onSandboxRemove)
                     } else {
                         if (app.enabled) {
-                            ActionButton("❄ Заморозить", enabled = connected && !protected) { onOp(BatchOp.FREEZE) }
+                            ActionButton("❄ Заморозить (иконка скроется)", enabled = connected && !protected) { onOp(BatchOp.FREEZE) }
                         } else {
                             ActionButton("Разморозить", enabled = connected) { onOp(BatchOp.UNFREEZE) }
+                        }
+                        if (app.suspended) {
+                            ActionButton("Снять паузу", enabled = connected) { onOp(BatchOp.UNSUSPEND) }
+                        } else {
+                            ActionButton("⏸ Пауза (иконка и виджеты остаются)", enabled = connected && !protected) { onOp(BatchOp.SUSPEND) }
+                        }
+                        if (bgRestricted) {
+                            ActionButton("Разрешить работу в фоне", enabled = connected) { onOp(BatchOp.ALLOW_BG) }
+                        } else {
+                            ActionButton("🔋 Ограничить работу в фоне", NeonAmber, enabled = connected && !protected) { onOp(BatchOp.RESTRICT_BG) }
                         }
                         ActionButton("В песочницу (заморозка + запуск по ярлыку)", NeonAmber, enabled = connected && !protected, onClick = onSandboxAdd)
                     }
@@ -438,7 +560,17 @@ private fun ActionButton(text: String, color: Color = NeonCyan, enabled: Boolean
 }
 
 @Composable
-private fun SandboxSettings(delaySeconds: Int, pendingCount: Int, onDelay: (Int) -> Unit) {
+private fun SandboxSettings(
+    delaySeconds: Int,
+    pendingCount: Int,
+    mode: String,
+    hasApps: Boolean,
+    enabled: Boolean,
+    onDelay: (Int) -> Unit,
+    onMode: (String) -> Unit,
+    onWakeAll: () -> Unit,
+    onSleepAll: () -> Unit,
+) {
     val context = LocalContext.current
     val needsNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -456,7 +588,21 @@ private fun SandboxSettings(delaySeconds: Int, pendingCount: Int, onDelay: (Int)
         if (pendingCount > 0) {
             Text("Сейчас разморожено: $pendingCount", color = NeonAmber, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
         }
-        Text("Заморозить после выключения экрана:", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+        Text("Как «усыплять» приложения:", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("⏸ Пауза", mode == SandboxState.MODE_SUSPEND) { onMode(SandboxState.MODE_SUSPEND) }
+            Chip("❄ Заморозка", mode == SandboxState.MODE_DISABLE) { onMode(SandboxState.MODE_DISABLE) }
+        }
+        Text(
+            if (mode == SandboxState.MODE_SUSPEND) {
+                "Иконка остаётся на рабочем столе (серой), виджеты сохраняются."
+            } else {
+                "Иконка и виджеты исчезают, пока приложение спит. Открывайте его ярлыком песочницы."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary,
+        )
+        Text("Усыпить после выключения экрана:", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(0 to "сразу", 30 to "30 с", 120 to "2 мин").forEach { (sec, label) ->
                 Chip(label, sec == delaySeconds) { onDelay(sec) }
@@ -466,6 +612,17 @@ private fun SandboxSettings(delaySeconds: Int, pendingCount: Int, onDelay: (Int)
             TextButton(onClick = { notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }) {
                 Text("Разрешить уведомление песочницы", color = NeonCyan)
             }
+        }
+        if (hasApps) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                TextButton(onClick = onWakeAll, enabled = enabled) { Text("Разбудить все", color = if (enabled) NeonGreen else TextSecondary) }
+                TextButton(onClick = onSleepAll, enabled = enabled) { Text("Усыпить все", color = if (enabled) NeonCyan else TextSecondary) }
+            }
+            Text(
+                "«Разбудить все» — перед поездкой или перезагрузкой, если Shizuku может быть недоступен.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+            )
         }
         TextButton(onClick = {
             runCatching {

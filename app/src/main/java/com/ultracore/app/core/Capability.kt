@@ -16,6 +16,8 @@ enum class Capability(val title: String, val usedIn: String) {
     LOGS("Системный журнал (logcat)", "Терминал → Диагностика, Оптимизация"),
     PACKAGE_LIST("Список приложений (pm)", "Очистка, Приложения"),
     APP_FREEZE("Заморозка приложений", "Приложения → Управление, Песочница"),
+    APP_SUSPEND("Пауза приложений", "Приложения → Управление, Песочница"),
+    BACKGROUND_LIMIT("Ограничение работы в фоне", "Приложения → Управление"),
     APP_REMOVE("Удаление системных приложений для пользователя", "Приложения → Управление"),
     APP_INSTALL("Установка APK через Shizuku", "Приложения → Управление → Установить"),
     ROOT_FEATURES("Функции, требующие Root", "Скрытие приложений, закрытые экраны"),
@@ -39,6 +41,6 @@ data class CapabilityReport(
     val version: Int = 1,
 ) {
     companion object {
-        const val CURRENT_VERSION = 2
+        const val CURRENT_VERSION = 3
     }
 }

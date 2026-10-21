@@ -47,6 +47,7 @@ class AppManagerRepository(context: Context) {
                 label = runCatching { app.loadLabel(pm).toString() }.getOrDefault(info.packageName),
                 isSystem = app.flags and ApplicationInfo.FLAG_SYSTEM != 0,
                 enabled = app.enabled,
+                suspended = app.flags and ApplicationInfo.FLAG_SUSPENDED != 0,
                 installed = app.flags and ApplicationInfo.FLAG_INSTALLED != 0,
                 versionName = info.versionName.orEmpty(),
                 sourceDir = app.sourceDir,
@@ -96,18 +97,77 @@ class AppManagerRepository(context: Context) {
 
     // ------------------------------------------------------------------ state changes
 
+    // Every successful change is recorded in AppChangeStore («Вернуть всё», export).
+
     suspend fun freeze(pkg: String): OpResult =
         run("pm disable-user --user 0 ${q(pkg)}", pkg, okWhen = { "disabled" in it || it.isBlank() })
+            .also { if (it.ok) AppChangeStore.update { c -> c.copy(frozen = (c.frozen + pkg).distinct()) } }
 
     suspend fun unfreeze(pkg: String): OpResult =
         run("pm enable --user 0 ${q(pkg)}", pkg, okWhen = { "enabled" in it || it.isBlank() })
+            .also { if (it.ok) AppChangeStore.update { c -> c.copy(frozen = c.frozen - pkg) } }
+
+    /** Pause: the icon stays (grey), widgets and data stay, but the app cannot run or notify. */
+    suspend fun suspendApp(pkg: String): OpResult =
+        run("pm suspend --user 0 ${q(pkg)}", pkg, okWhen = { "true" in it || it.isBlank() })
+            .also { if (it.ok) AppChangeStore.update { c -> c.copy(suspended = (c.suspended + pkg).distinct()) } }
+
+    suspend fun unsuspendApp(pkg: String): OpResult =
+        run("pm unsuspend --user 0 ${q(pkg)}", pkg, okWhen = { "false" in it || it.isBlank() })
+            .also { if (it.ok) AppChangeStore.update { c -> c.copy(suspended = c.suspended - pkg) } }
 
     /** Removes an app for the current user only; the APK stays in the system, so it can be restored. */
     suspend fun uninstallForUser(pkg: String): OpResult =
         run("pm uninstall -k --user 0 ${q(pkg)}", pkg, okWhen = { "success" in it })
+            .also { if (it.ok) AppChangeStore.update { c -> c.copy(removed = (c.removed + pkg).distinct()) } }
 
     suspend fun restore(pkg: String): OpResult =
         run("cmd package install-existing --user 0 ${q(pkg)}", pkg, okWhen = { "installed" in it || "success" in it })
+            .also { if (it.ok) AppChangeStore.update { c -> c.copy(removed = c.removed - pkg) } }
+
+    /**
+     * Background limit without freezing: forbids running in the background and puts the app
+     * into the strictest standby bucket. Push notifications still arrive. The original state is
+     * saved before the first change so «Разрешить фон» restores it exactly.
+     */
+    suspend fun restrictBackground(pkg: String): OpResult {
+        if (!ShizukuManager.isConnected) return OpResult(false, "Shizuku не подключён")
+        if (pkg !in AppChangeStore.state.value.restricted) {
+            val appop = ShizukuManager.execResult("cmd appops get --user 0 ${q(pkg)} RUN_ANY_IN_BACKGROUND", 20)
+            val mode = Regex("RUN_ANY_IN_BACKGROUND:\\s*(\\w+)").find(appop.combined)?.groupValues?.get(1) ?: "default"
+            val bucket = ShizukuManager.execResult("am get-standby-bucket --user 0 ${q(pkg)}", 20)
+                .stdout.trim().lineSequence().firstOrNull().orEmpty()
+            AppChangeStore.update { c -> c.copy(restricted = c.restricted + (pkg to BackgroundOriginal(mode, bucket))) }
+        }
+        val op = run("cmd appops set --user 0 ${q(pkg)} RUN_ANY_IN_BACKGROUND ignore", pkg, okWhen = { true })
+        if (!op.ok) {
+            AppChangeStore.update { c -> c.copy(restricted = c.restricted - pkg) }
+            return op
+        }
+        val bucket = run("am set-standby-bucket --user 0 ${q(pkg)} restricted", pkg, okWhen = { true })
+        return if (bucket.ok) OpResult(true, "Готово") else OpResult(true, "Фон запрещён; режим энергосбережения прошивка не дала изменить")
+    }
+
+    suspend fun allowBackground(pkg: String): OpResult {
+        if (!ShizukuManager.isConnected) return OpResult(false, "Shizuku не подключён")
+        val original = AppChangeStore.state.value.restricted[pkg] ?: BackgroundOriginal("default", "")
+        val mode = original.appop.takeIf { it in setOf("allow", "ignore", "deny", "default", "foreground") } ?: "default"
+        val op = run("cmd appops set --user 0 ${q(pkg)} RUN_ANY_IN_BACKGROUND $mode", pkg, okWhen = { true })
+        if (!op.ok) return op
+        run("am set-standby-bucket --user 0 ${q(pkg)} ${bucketName(original.bucket)}", pkg, okWhen = { true })
+        AppChangeStore.update { c -> c.copy(restricted = c.restricted - pkg) }
+        return OpResult(true, "Готово")
+    }
+
+    /** `am get-standby-bucket` prints a number; `set` wants a name. */
+    private fun bucketName(raw: String): String = when (raw.trim().toIntOrNull()) {
+        5, 10 -> "active"
+        20 -> "working_set"
+        30 -> "frequent"
+        40 -> "rare"
+        45 -> "restricted"
+        else -> raw.trim().takeIf { it in setOf("active", "working_set", "frequent", "rare", "restricted") } ?: "active"
+    }
 
     private suspend fun run(command: String, pkg: String, okWhen: (String) -> Boolean): OpResult {
         if (!ShizukuManager.isConnected) return OpResult(false, "Shizuku не подключён")

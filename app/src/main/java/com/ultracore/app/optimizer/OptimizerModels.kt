@@ -30,11 +30,12 @@ data class OptimizationResult(
 )
 
 enum class OptimizerTool(val title: String) {
-    TrimCaches("Сброс кэша приложений"),
-    FreeRam("Освобождение ОЗУ"),
-    LogsAndTrim("Очистка логов и TRIM"),
+    // `am kill-all` and logcat clearing were removed in 2.1: on modern Android the system restarts
+    // killed processes (costing battery), and clearing the log ring buffer gives nothing back.
+    Trim("TRIM накопителя"),
+    DexoptJob("Фоновая оптимизация приложений"),
     ArtCompile("ART-компиляция приложений"),
-    DexoptJob("Глубокая DEX-оптимизация"),
+    TrimCaches("Сброс кэша приложений"),
 }
 
 /** Events emitted while compiling user apps one by one. */

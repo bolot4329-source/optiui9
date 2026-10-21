@@ -80,6 +80,8 @@ class CapabilityChecker(context: Context) {
                 // Commands aimed at a package that does not exist: «unknown package» means the
                 // command itself is allowed, a SecurityException means the firmware blocks it.
                 Capability.APP_FREEZE -> reachable(capability, run("pm disable-user --user 0 $PROBE_PACKAGE"))
+                Capability.APP_SUSPEND -> reachable(capability, run("pm suspend --user 0 $PROBE_PACKAGE"))
+                Capability.BACKGROUND_LIMIT -> fromResult(capability, run("cmd appops get --user 0 com.android.shell RUN_ANY_IN_BACKGROUND"))
                 Capability.APP_REMOVE -> reachable(capability, run("pm uninstall -k --user 0 $PROBE_PACKAGE"))
                 Capability.APP_INSTALL -> probeInstall()
                 Capability.ROOT_FEATURES -> if (ShizukuManager.mode == ShizukuMode.ROOT) {

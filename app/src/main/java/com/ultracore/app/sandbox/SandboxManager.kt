@@ -54,21 +54,65 @@ object SandboxManager {
 
     fun isInSandbox(pkg: String) = pkg in store.state.value.packages
 
+    /** Puts the app to sleep the way chosen in settings (pause or full freeze). */
+    private suspend fun sleep(pkg: String): OpResult =
+        if (store.state.value.mode == SandboxState.MODE_DISABLE) repository.freeze(pkg) else repository.suspendApp(pkg)
+
+    /** Wakes the app whatever way it was put to sleep (mode may have changed since). */
+    private suspend fun wake(pkg: String): OpResult {
+        val unsuspend = repository.unsuspendApp(pkg)
+        val enable = repository.unfreeze(pkg)
+        return if (unsuspend.ok || enable.ok) OpResult(true, "Готово") else enable
+    }
+
     suspend fun add(pkg: String): OpResult {
-        val r = repository.freeze(pkg)
+        val r = sleep(pkg)
         if (r.ok) store.update { it.copy(packages = (it.packages + pkg).distinct(), pending = it.pending - pkg) }
         return r
     }
 
     /** Takes the app out of the sandbox and unfreezes it. */
     suspend fun remove(pkg: String): OpResult {
-        val r = repository.unfreeze(pkg)
+        val r = wake(pkg)
         store.update { it.copy(packages = it.packages - pkg, pending = it.pending - pkg) }
         if (store.state.value.pending.isEmpty()) SandboxService.stop(appContext)
         return r
     }
 
     fun setDelay(seconds: Int) = store.update { it.copy(delaySeconds = seconds) }
+
+    fun setMode(mode: String) = store.update { it.copy(mode = mode) }
+
+    /** Wakes every sandboxed app (before a trip or a reboot); they stay in the sandbox list. */
+    suspend fun wakeAll(): List<Pair<String, String>> {
+        val failures = mutableListOf<Pair<String, String>>()
+        for (pkg in store.state.value.packages) {
+            val r = wake(pkg)
+            if (!r.ok) failures += pkg to r.message
+        }
+        store.update { it.copy(pending = emptyList()) }
+        SandboxService.stop(appContext)
+        return failures
+    }
+
+    /** Puts every sandboxed app to sleep right now. */
+    suspend fun sleepAll(): List<Pair<String, String>> {
+        val failures = mutableListOf<Pair<String, String>>()
+        for (pkg in store.state.value.packages) {
+            val r = sleep(pkg)
+            if (!r.ok) failures += pkg to r.message
+        }
+        store.update { it.copy(pending = emptyList()) }
+        SandboxService.stop(appContext)
+        return failures
+    }
+
+    /** Wakes everything and empties the sandbox (used by «Вернуть телефон как было»). */
+    suspend fun clearAll(): List<Pair<String, String>> {
+        val failures = wakeAll()
+        store.update { it.copy(packages = emptyList(), pending = emptyList()) }
+        return failures
+    }
 
     /** Unfreeze → open → remember to freeze after the screen goes off. */
     suspend fun launch(context: Context, pkg: String): OpResult {
@@ -80,7 +124,7 @@ object SandboxManager {
             undoPending(pkg)
             return OpResult(false, "Shizuku не подключён — запустите Shizuku")
         }
-        val unfreeze = repository.unfreeze(pkg)
+        val unfreeze = wake(pkg)
         if (!unfreeze.ok) {
             undoPending(pkg)
             return unfreeze
@@ -122,7 +166,7 @@ object SandboxManager {
                 // Screen on again (or the job was cancelled by SCREEN_ON) — stop right here.
                 currentCoroutineContext().ensureActive()
                 if (isScreenOn()) break
-                val r = repository.freeze(pkg)
+                val r = sleep(pkg)
                 if (r.ok || pkg !in store.state.value.packages) {
                     store.update { it.copy(pending = it.pending - pkg) }
                 }

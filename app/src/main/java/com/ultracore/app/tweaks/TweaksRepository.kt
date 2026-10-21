@@ -173,6 +173,54 @@ class TweaksRepository(context: Context) {
         }
     }
 
+    // ---------- private DNS ----------
+
+    data class DnsState(val mode: String?, val host: String?)
+
+    suspend fun readDns(): DnsState = DnsState(read(DNS_MODE), read(DNS_HOST))
+
+    suspend fun setDnsMode(mode: String): TweakMessage {
+        val r = write(DNS_MODE, mode)
+        if (!r.isSuccess) return errorMessage(r)
+        return TweakMessage(if (mode == "off") "Частный DNS выключен" else "Частный DNS: автоматически", MessageKind.OK)
+    }
+
+    suspend fun setDnsHost(host: String): TweakMessage {
+        val h = host.trim().lowercase()
+        if (!HOST_REGEX.matches(h)) return TweakMessage("Введите адрес сервера, например dns.adguard-dns.com", MessageKind.ERROR)
+        val r1 = write(DNS_HOST, h)
+        if (!r1.isSuccess) return errorMessage(r1)
+        val r2 = write(DNS_MODE, "hostname")
+        if (!r2.isSuccess) return errorMessage(r2)
+        return TweakMessage(
+            "Частный DNS: $h. Если сайты перестали открываться — сервер недоступен, нажмите «Сбросить».",
+            MessageKind.OK,
+        )
+    }
+
+    suspend fun resetDns(): TweakMessage {
+        for (target in listOf(DNS_MODE, DNS_HOST)) {
+            val r = restore(target)
+            if (!r.isSuccess) return errorMessage(r)
+        }
+        return TweakMessage("Частный DNS возвращён к исходному", MessageKind.OK)
+    }
+
+    fun hasDnsBackup() = hasBackup(DNS_MODE, DNS_HOST)
+
+    /** Restores every tweak that has a backup (used by «Вернуть телефон как было»). */
+    suspend fun restoreAll(): List<Pair<String, String>> {
+        val failures = mutableListOf<Pair<String, String>>()
+        for (target in ALL_TARGETS) {
+            if (!backup.has(target)) continue
+            val r = restore(target)
+            if (!r.isSuccess) failures += target.id to errorMessage(r).text
+        }
+        return failures
+    }
+
+    fun hasAnyBackup(): Boolean = ALL_TARGETS.any { backup.has(it) }
+
     fun hasAnimationBackup() = hasBackup(*ANIMATION_KEYS.toTypedArray())
     fun hasRefreshBackup() = hasBackup(PEAK_REFRESH, MIN_REFRESH)
     fun hasPhantomBackup() = hasBackup(PHANTOM_MONITOR, PHANTOM_MAX, SettingTarget.DeviceConfigSyncMode)
@@ -182,7 +230,15 @@ class TweaksRepository(context: Context) {
         private const val VERIFY_DELAY_MS = 1_500L
         private const val PHANTOM_UNLIMITED = "2147483647"
 
-        val ANIMATION_SCALES = listOf("0.0", "0.5", "1.0")
+        val ANIMATION_SCALES = listOf("0.0", "0.25", "0.5", "0.75", "1.0")
+
+        /** Well-known private DNS servers (DNS-over-TLS hostnames). */
+        val DNS_PRESETS = listOf(
+            "dns.adguard-dns.com" to "AdGuard — блокирует рекламу",
+            "one.one.one.one" to "Cloudflare",
+            "dns.google" to "Google",
+        )
+        private val HOST_REGEX = Regex("^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$")
 
         private val ANIMATION_KEYS = listOf(
             SettingTarget.Setting("global", "window_animation_scale"),
@@ -193,6 +249,12 @@ class TweaksRepository(context: Context) {
         private val MIN_REFRESH = SettingTarget.Setting("system", "min_refresh_rate")
         private val PHANTOM_MONITOR = SettingTarget.Setting("global", "settings_enable_monitor_phantom_procs")
         private val PHANTOM_MAX = SettingTarget.DeviceConfig("activity_manager", "max_phantom_processes")
+        private val DNS_MODE = SettingTarget.Setting("global", "private_dns_mode")
+        private val DNS_HOST = SettingTarget.Setting("global", "private_dns_specifier")
+
+        private val ALL_TARGETS: List<SettingTarget> = ANIMATION_KEYS + listOf(
+            PEAK_REFRESH, MIN_REFRESH, PHANTOM_MONITOR, PHANTOM_MAX, SettingTarget.DeviceConfigSyncMode, DNS_MODE, DNS_HOST,
+        )
 
         fun scaleLabel(scale: String?): String {
             val value = scale?.toFloatOrNull() ?: return "по умолчанию"

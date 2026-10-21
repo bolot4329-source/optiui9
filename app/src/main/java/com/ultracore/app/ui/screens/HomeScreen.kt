@@ -17,7 +17,12 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +56,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val checking by viewModel.checking.collectAsStateWithLifecycle()
     val shizuku by viewModel.shizukuState.collectAsStateWithLifecycle()
     val connected = shizuku is ShizukuState.Connected
+    val resetBusy by viewModel.resetBusy.collectAsStateWithLifecycle()
+    val resetReport by viewModel.resetReport.collectAsStateWithLifecycle()
+    var confirmReset by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -113,6 +121,52 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
         } else {
             items(results, key = { it.capability.name }) { CapabilityRow(it) }
         }
+
+        item {
+            UltraCard {
+                Text("Вернуть телефон как было", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(
+                    "Отменяет всё, что изменил UltraCore: заморозку, паузу, удаление системных приложений, " +
+                        "ограничения фона, песочницу и все твики. Нажмите перед удалением UltraCore — " +
+                        "сами по себе изменения после удаления приложения не исчезнут.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                )
+                Spacer(Modifier.size(8.dp))
+                if (resetBusy != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = NeonAmber)
+                        Spacer(Modifier.width(10.dp))
+                        Text(resetBusy.orEmpty(), color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                } else {
+                    TextButton(onClick = { confirmReset = true }, enabled = connected) {
+                        Text("Вернуть всё", color = if (connected) NeonAmber else TextSecondary)
+                    }
+                }
+            }
+        }
+    }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Вернуть телефон как было?") },
+            text = { Text("Все приложения будут разморожены и восстановлены, ограничения сняты, твики сброшены к исходным значениям.") },
+            confirmButton = {
+                TextButton(onClick = { confirmReset = false; viewModel.resetEverything() }) { Text("Вернуть", color = NeonAmber) }
+            },
+            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Отмена") } },
+        )
+    }
+
+    resetReport?.let { text ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissResetReport,
+            title = { Text("Готово") },
+            text = { Text(text) },
+            confirmButton = { TextButton(onClick = viewModel::dismissResetReport) { Text("OK") } },
+        )
     }
 }
 

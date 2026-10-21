@@ -7,7 +7,7 @@ enum class JunkCategory(val title: String, val description: String) {
     ),
     Thumbnails(
         "Кэш миниатюр",
-        "Папки .thumbnails — галерея создаст их заново",
+        "Папки .thumbnails. Пользы мало: галерея потратит заряд, чтобы создать их заново. Только при нехватке места",
     ),
     LogsAndTemp(
         "Логи и временные файлы",
@@ -19,7 +19,7 @@ enum class JunkCategory(val title: String, val description: String) {
     ),
     Duplicates(
         "Дубликаты",
-        "Одинаковые файлы от 1 МБ (SHA-256). Самый старый экземпляр остаётся",
+        "Одинаковые файлы от 1 МБ (SHA-256). Самый старый экземпляр остаётся. Просмотрите список перед удалением",
     ),
 }
 

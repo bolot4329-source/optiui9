@@ -16,7 +16,14 @@ data class SandboxState(
     val pending: List<String> = emptyList(),
     /** Delay after the screen turns off: 0, 30 or 120 seconds. */
     val delaySeconds: Int = 30,
-)
+    /** How sandboxed apps sleep: [MODE_SUSPEND] (icon stays, grey) or [MODE_DISABLE] (icon hidden). */
+    val mode: String = MODE_SUSPEND,
+) {
+    companion object {
+        const val MODE_SUSPEND = "suspend"
+        const val MODE_DISABLE = "disable"
+    }
+}
 
 /** filesDir/sandbox.json */
 class SandboxStore(context: Context) {

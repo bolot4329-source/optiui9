@@ -91,27 +91,24 @@ import java.util.Locale
 private const val TELEMETRY_INTERVAL_MS = 3_000L
 
 private val TOOL_ORDER = listOf(
-    OptimizerTool.TrimCaches,
-    OptimizerTool.FreeRam,
-    OptimizerTool.LogsAndTrim,
-    OptimizerTool.ArtCompile,
+    OptimizerTool.Trim,
     OptimizerTool.DexoptJob,
+    OptimizerTool.ArtCompile,
+    OptimizerTool.TrimCaches,
 )
 
 private fun OptimizerTool.icon(): ImageVector = when (this) {
     OptimizerTool.TrimCaches -> Icons.Outlined.CleaningServices
-    OptimizerTool.FreeRam -> Icons.Outlined.Memory
-    OptimizerTool.LogsAndTrim -> Icons.Outlined.DeleteSweep
+    OptimizerTool.Trim -> Icons.Outlined.DeleteSweep
     OptimizerTool.ArtCompile -> Icons.Outlined.Speed
     OptimizerTool.DexoptJob -> Icons.Outlined.Tune
 }
 
 private fun OptimizerTool.description(): String = when (this) {
-    OptimizerTool.TrimCaches -> "pm trim-caches 999G — система удаляет кэш всех приложений"
-    OptimizerTool.FreeRam -> "am kill-all — выгружает кэшированные фоновые процессы"
-    OptimizerTool.LogsAndTrim -> "logcat -b all -c и sm fstrim — сброс логов и TRIM накопителя"
-    OptimizerTool.ArtCompile -> "cmd package compile -m speed-profile -f для каждого приложения"
-    OptimizerTool.DexoptJob -> "cmd package bg-dexopt-job — все пакеты, может идти до 10 минут"
+    OptimizerTool.Trim -> "sm fstrim — обслуживание памяти телефона. Полезно после удаления большого объёма файлов"
+    OptimizerTool.DexoptJob -> "cmd package bg-dexopt-job — то же, что система делает ночью на зарядке. До 10 минут"
+    OptimizerTool.ArtCompile -> "cmd package compile -m speed-profile -f для каждого приложения. Нужно редко: после крупного обновления системы"
+    OptimizerTool.TrimCaches -> "pm trim-caches — удаляет кэш всех приложений. Только при нехватке места: потом приложения заново скачают данные и первое время будут медленнее"
 }
 
 @Composable
@@ -311,13 +308,13 @@ private fun BoostCard(
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Полная оптимизация",
+                        text = "Обслуживание в 1 тап",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
                     )
                     Text(
-                        text = "Кэш → ОЗУ → Логи + TRIM → ART-компиляция",
+                        text = "TRIM памяти → фоновая оптимизация приложений",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                     )

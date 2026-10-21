@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Phase 2: telemetry + 5 optimization modules executed through Shizuku (UID 2000).
+ * Telemetry + optimization modules executed through Shizuku (UID 2000).
  * Every executed command is written to [log] with its duration and result.
  */
 class SystemOptimizerRepository {
@@ -162,38 +162,14 @@ class SystemOptimizerRepository {
         return result
     }
 
-    /** 4) am kill-all: kills cached background processes, measures MemAvailable delta. */
-    suspend fun freeRam(): OptimizationResult {
-        val before = readMemory()?.availableBytes
-        val r = exec("am kill-all", timeoutSeconds = 60)
-        delay(1_500) // let the kernel reclaim memory
-        val after = readMemory()?.availableBytes
-        val result = if (!r.ok) {
-            fail(OptimizerTool.FreeRam, r)
-        } else if (before != null && after != null) {
-            val freed = after - before
-            if (freed > 0) {
-                OptimizationResult(OptimizerTool.FreeRam, true, "Освобождено ${formatBytes(freed)} ОЗУ")
-            } else {
-                OptimizationResult(OptimizerTool.FreeRam, true, "Фоновые процессы выгружены (свободная ОЗУ почти не изменилась)")
-            }
+    /** TRIM: tells the flash storage which blocks are free. Useful after deleting a lot of files. */
+    suspend fun trim(): OptimizationResult {
+        val r = exec("sm fstrim", timeoutSeconds = 600)
+        val result = if (r.ok) {
+            OptimizationResult(OptimizerTool.Trim, true, "TRIM выполнен за ${formatDuration(r.durationMs)}")
         } else {
-            OptimizationResult(OptimizerTool.FreeRam, true, "Фоновые процессы выгружены")
+            fail(OptimizerTool.Trim, r)
         }
-        info(result)
-        return result
-    }
-
-    /** 5) Clear all logcat ring buffers, then fstrim the storage. Run separately so one failure doesn't block the other. */
-    suspend fun clearLogsAndTrim(): OptimizationResult {
-        val logs = exec("logcat -b all -c", timeoutSeconds = 30)
-        val trim = exec("sm fstrim", timeoutSeconds = 600)
-        val summary = buildString {
-            append(if (logs.ok) "Логи очищены" else "Логи: ошибка")
-            append(" · ")
-            append(if (trim.ok) "TRIM выполнен (${formatDuration(trim.durationMs)})" else "TRIM: ошибка")
-        }
-        val result = OptimizationResult(OptimizerTool.LogsAndTrim, logs.ok || trim.ok, summary)
         info(result)
         return result
     }
