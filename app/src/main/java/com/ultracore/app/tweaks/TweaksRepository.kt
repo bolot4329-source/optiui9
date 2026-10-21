@@ -43,7 +43,13 @@ class TweaksRepository(context: Context) {
     /** Restores the backed-up original. Without a backup there is nothing to undo. */
     suspend fun restore(target: SettingTarget): ShellResult {
         val original = backup.get(target) ?: return ShellResult(0, "", "", truncated = false, timedOut = false)
-        val command = if (original == TweakBackup.UNSET) target.deleteCommand else target.putCommand(original)
+        val command = when {
+            // Deleting private_dns_mode does not switch DNS back on some firmware until a reboot:
+            // write the Android default explicitly instead.
+            original == TweakBackup.UNSET && target.id == DNS_MODE.id -> target.putCommand("opportunistic")
+            original == TweakBackup.UNSET -> target.deleteCommand
+            else -> target.putCommand(original)
+        }
         val result = checked(ShizukuManager.execResult(command, TIMEOUT))
         if (result.isSuccess) backup.remove(target)
         return result
@@ -199,7 +205,8 @@ class TweaksRepository(context: Context) {
     }
 
     suspend fun resetDns(): TweakMessage {
-        for (target in listOf(DNS_MODE, DNS_HOST)) {
+        // Host first: if the original mode was «hostname», it must switch on with the right host.
+        for (target in listOf(DNS_HOST, DNS_MODE)) {
             val r = restore(target)
             if (!r.isSuccess) return errorMessage(r)
         }
@@ -253,7 +260,7 @@ class TweaksRepository(context: Context) {
         private val DNS_HOST = SettingTarget.Setting("global", "private_dns_specifier")
 
         private val ALL_TARGETS: List<SettingTarget> = ANIMATION_KEYS + listOf(
-            PEAK_REFRESH, MIN_REFRESH, PHANTOM_MONITOR, PHANTOM_MAX, SettingTarget.DeviceConfigSyncMode, DNS_MODE, DNS_HOST,
+            PEAK_REFRESH, MIN_REFRESH, PHANTOM_MONITOR, PHANTOM_MAX, SettingTarget.DeviceConfigSyncMode, DNS_HOST, DNS_MODE,
         )
 
         fun scaleLabel(scale: String?): String {

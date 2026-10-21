@@ -216,12 +216,15 @@ class AppManagerViewModel(app: Application) : AndroidViewModel(app) {
     /** Current list of UltraCore's changes + sandbox, as a portable profile. */
     fun exportProfile(uri: Uri) {
         val c = AppChangeStore.state.value
+        // Sandboxed apps are listed only under «sandbox»: they are also in the freeze/pause lists,
+        // and importing them twice would apply two operations to the same app.
+        val sb = SandboxManager.state.value.packages.toSet()
         val profile = UltraCoreProfile(
-            frozen = c.frozen,
-            suspended = c.suspended,
-            removed = c.removed,
-            restricted = c.restricted.keys.toList(),
-            sandbox = SandboxManager.state.value.packages,
+            frozen = c.frozen - sb,
+            suspended = c.suspended - sb,
+            removed = c.removed - sb,
+            restricted = c.restricted.keys.filter { it !in sb },
+            sandbox = sb.toList(),
         )
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {

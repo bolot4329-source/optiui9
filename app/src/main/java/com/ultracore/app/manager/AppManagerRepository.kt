@@ -34,6 +34,11 @@ class AppManagerRepository(context: Context) {
     private val appContext = context.applicationContext
     private val pm = appContext.packageManager
 
+    init {
+        // Cheap guard: the change list must be loaded before any change is recorded.
+        AppChangeStore.init(appContext)
+    }
+
     // ------------------------------------------------------------------ list
 
     suspend fun loadApps(): List<ManagedApp> = withContext(Dispatchers.IO) {
@@ -108,12 +113,13 @@ class AppManagerRepository(context: Context) {
             .also { if (it.ok) AppChangeStore.update { c -> c.copy(frozen = c.frozen - pkg) } }
 
     /** Pause: the icon stays (grey), widgets and data stay, but the app cannot run or notify. */
+    // AOSP always prints «Package … new suspended state: true/false»; anything else is a failure.
     suspend fun suspendApp(pkg: String): OpResult =
-        run("pm suspend --user 0 ${q(pkg)}", pkg, okWhen = { "true" in it || it.isBlank() })
+        run("pm suspend --user 0 ${q(pkg)}", pkg, okWhen = { "state: true" in it })
             .also { if (it.ok) AppChangeStore.update { c -> c.copy(suspended = (c.suspended + pkg).distinct()) } }
 
     suspend fun unsuspendApp(pkg: String): OpResult =
-        run("pm unsuspend --user 0 ${q(pkg)}", pkg, okWhen = { "false" in it || it.isBlank() })
+        run("pm unsuspend --user 0 ${q(pkg)}", pkg, okWhen = { "state: false" in it })
             .also { if (it.ok) AppChangeStore.update { c -> c.copy(suspended = c.suspended - pkg) } }
 
     /** Removes an app for the current user only; the APK stays in the system, so it can be restored. */
@@ -132,7 +138,8 @@ class AppManagerRepository(context: Context) {
      */
     suspend fun restrictBackground(pkg: String): OpResult {
         if (!ShizukuManager.isConnected) return OpResult(false, "Shizuku не подключён")
-        if (pkg !in AppChangeStore.state.value.restricted) {
+        val backupCreatedNow = pkg !in AppChangeStore.state.value.restricted
+        if (backupCreatedNow) {
             val appop = ShizukuManager.execResult("cmd appops get --user 0 ${q(pkg)} RUN_ANY_IN_BACKGROUND", 20)
             val mode = Regex("RUN_ANY_IN_BACKGROUND:\\s*(\\w+)").find(appop.combined)?.groupValues?.get(1) ?: "default"
             val bucket = ShizukuManager.execResult("am get-standby-bucket --user 0 ${q(pkg)}", 20)
@@ -141,7 +148,8 @@ class AppManagerRepository(context: Context) {
         }
         val op = run("cmd appops set --user 0 ${q(pkg)} RUN_ANY_IN_BACKGROUND ignore", pkg, okWhen = { true })
         if (!op.ok) {
-            AppChangeStore.update { c -> c.copy(restricted = c.restricted - pkg) }
+            // Drop only a backup made in this call — an older one still holds the true original.
+            if (backupCreatedNow) AppChangeStore.update { c -> c.copy(restricted = c.restricted - pkg) }
             return op
         }
         val bucket = run("am set-standby-bucket --user 0 ${q(pkg)} restricted", pkg, okWhen = { true })
@@ -154,10 +162,26 @@ class AppManagerRepository(context: Context) {
         val mode = original.appop.takeIf { it in setOf("allow", "ignore", "deny", "default", "foreground") } ?: "default"
         val op = run("cmd appops set --user 0 ${q(pkg)} RUN_ANY_IN_BACKGROUND $mode", pkg, okWhen = { true })
         if (!op.ok) return op
-        run("am set-standby-bucket --user 0 ${q(pkg)} ${bucketName(original.bucket)}", pkg, okWhen = { true })
+        // 5 = exempted (system decides) — cannot be set with set-standby-bucket, leave it to the system.
+        val bucket = original.bucket.trim()
+        if (bucket.isNotEmpty() && bucket != "5") {
+            run("am set-standby-bucket --user 0 ${q(pkg)} ${bucketName(bucket)}", pkg, okWhen = { true })
+        }
         AppChangeStore.update { c -> c.copy(restricted = c.restricted - pkg) }
         return OpResult(true, "Готово")
     }
+
+    /** Installed for this user, removed for this user (restorable) or disabled — anything but gone. */
+    @Suppress("DEPRECATION")
+    fun isOnPhone(pkg: String): Boolean = runCatching {
+        val flags = PackageManager.MATCH_UNINSTALLED_PACKAGES or PackageManager.MATCH_DISABLED_COMPONENTS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
+        } else {
+            pm.getPackageInfo(pkg, flags)
+        }
+        true
+    }.getOrDefault(false)
 
     /** `am get-standby-bucket` prints a number; `set` wants a name. */
     private fun bucketName(raw: String): String = when (raw.trim().toIntOrNull()) {

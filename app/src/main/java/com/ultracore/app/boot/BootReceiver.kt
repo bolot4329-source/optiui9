@@ -10,7 +10,9 @@ import androidx.core.app.NotificationCompat
 import com.ultracore.app.MainActivity
 import com.ultracore.app.R
 import com.ultracore.app.sandbox.SandboxManager
+import com.ultracore.app.sandbox.SandboxService
 import com.ultracore.app.shizuku.ShizukuManager
+import rikka.shizuku.Shizuku
 
 /**
  * After a reboot Shizuku is stopped. If the sandbox has apps, remind the user to start Shizuku:
@@ -23,6 +25,13 @@ class BootReceiver : BroadcastReceiver() {
         SandboxManager.init(context)
         val state = SandboxManager.state.value
         if (state.packages.isEmpty() && state.pending.isEmpty()) return
+
+        // Shizuku already running (root, or auto-start over Wi-Fi debugging): no reminder needed;
+        // apps left awake before the reboot are handed to the sandbox service to fall asleep.
+        if (runCatching { Shizuku.pingBinder() }.getOrDefault(false)) {
+            if (state.pending.isNotEmpty()) SandboxService.start(context)
+            return
+        }
 
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {

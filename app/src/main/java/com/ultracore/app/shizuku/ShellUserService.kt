@@ -7,6 +7,7 @@ import android.system.StructPollfd
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
@@ -192,14 +193,19 @@ class ShellUserService : IShellService.Stub() {
         private const val PID_MARKER = "@@ULTRACORE_PID@@"
 
         /** A started `sh` and its pid (needed to kill the whole command, not only `sh`). */
-        class Started(val process: Process, val pid: Int?)
+        class Started(val process: Process, val pid: Int?) {
+            /** killTree may be called from the monitor and the reader thread at once — run it once. */
+            val killed = AtomicBoolean(false)
+        }
 
         /**
          * Starts `sh -c` and reads its pid: the script first prints a marker line with `$$`
          * to stderr, which is consumed here and never reaches the output.
          */
         fun startShell(command: String, mergeStderr: Boolean): Started {
-            val script = "echo $PID_MARKER\$\$ 1>&2\n$command"
+            // The user command runs through `eval` AFTER the marker: a syntax error in it is then
+            // reported by eval as normal output instead of being swallowed as the «marker line».
+            val script = "echo $PID_MARKER\$\$ 1>&2\neval ${shellQuote(command)}"
             val process = ProcessBuilder("sh", "-c", script)
                 .redirectErrorStream(mergeStderr)
                 .start()
@@ -224,9 +230,12 @@ class ShellUserService : IShellService.Stub() {
 
         /** Kills the command's children (pipelines, logcat…) and then `sh` itself. */
         fun killTree(started: Started) {
+            if (!started.killed.compareAndSet(false, true)) return
             started.pid?.let { pid ->
                 runCatching {
-                    ProcessBuilder("sh", "-c", "pkill -9 -P $pid").start().waitFor(2, TimeUnit.SECONDS)
+                    // Whole tree, deepest first: children of children (subshells, pipelines) too.
+                    val script = "kt(){ for c in \$(pgrep -P \$1); do kt \$c; done; kill -9 \$1 2>/dev/null; }; kt $pid"
+                    ProcessBuilder("sh", "-c", script).start().waitFor(2, TimeUnit.SECONDS)
                 }
             }
             runCatching { started.process.destroyForcibly() }
