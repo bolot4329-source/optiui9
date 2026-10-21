@@ -1,0 +1,41 @@
+[
+  {"category": "Система", "title": "Версия Android", "description": "Версия системы и уровень API", "command": "echo \"Android $(getprop ro.build.version.release), API $(getprop ro.build.version.sdk)\""},
+  {"category": "Система", "title": "Модель и прошивка", "description": "Производитель, модель и номер сборки", "command": "getprop ro.product.manufacturer; getprop ro.product.model; getprop ro.build.display.id"},
+  {"category": "Система", "title": "Время работы", "description": "Сколько телефон работает без перезагрузки и средняя нагрузка", "command": "uptime"},
+  {"category": "Система", "title": "Оперативная память", "description": "Всего, свободно и доступно ОЗУ", "command": "head -5 /proc/meminfo"},
+  {"category": "Система", "title": "Свободное место", "description": "Заполненность памяти телефона", "command": "df -h /data"},
+  {"category": "Система", "title": "Топ процессов", "description": "10 процессов, которые больше всего нагружают процессор", "command": "top -b -n 1 -m 10"},
+  {"category": "Система", "title": "Ядро", "description": "Версия ядра Linux", "command": "uname -a"},
+
+  {"category": "Сеть", "title": "IP-адреса", "description": "Сетевые интерфейсы и их адреса", "command": "ip addr show"},
+  {"category": "Сеть", "title": "Пинг", "description": "Проверка связи с сервером (4 пакета)", "command": "ping -c 4 {host}", "params": [{"name": "host", "hint": "Адрес сервера", "default": "8.8.8.8"}]},
+  {"category": "Сеть", "title": "Частный DNS", "description": "Режим и сервер частного DNS", "command": "settings get global private_dns_mode; settings get global private_dns_specifier"},
+  {"category": "Сеть", "title": "Активная сеть", "description": "Какая сеть сейчас используется по умолчанию", "command": "dumpsys connectivity | grep -m 5 -i 'default network'"},
+  {"category": "Сеть", "title": "Wi-Fi", "description": "Текущее подключение Wi-Fi", "command": "dumpsys wifi | grep -m 3 'mWifiInfo'"},
+
+  {"category": "Батарея", "title": "Состояние батареи", "description": "Все данные батареи от системы", "command": "dumpsys battery"},
+  {"category": "Батарея", "title": "Кто не даёт уснуть", "description": "Активные блокировки сна (wake locks)", "command": "dumpsys power | grep -i -A 20 'Wake Locks:' | head -25"},
+  {"category": "Батарея", "title": "Энергосбережение", "description": "1 — включено, 0 — выключено", "command": "settings get global low_power"},
+  {"category": "Батарея", "title": "Исключения из экономии", "description": "Приложения, которым разрешено работать в фоне без ограничений", "command": "dumpsys deviceidle whitelist"},
+
+  {"category": "Дисплей", "title": "Разрешение экрана", "description": "Физическое и текущее разрешение", "command": "wm size"},
+  {"category": "Дисплей", "title": "Плотность экрана", "description": "DPI: физическая и текущая", "command": "wm density"},
+  {"category": "Дисплей", "title": "Частота обновления", "description": "Текущая частота экрана", "command": "dumpsys display | grep -m 5 -i 'refreshrate'"},
+  {"category": "Дисплей", "title": "Яркость", "description": "Текущая яркость (0–255 или больше на некоторых экранах)", "command": "settings get system screen_brightness"},
+  {"category": "Дисплей", "title": "Сбросить разрешение и DPI", "description": "Вернуть стандартные значения, если что-то пошло не так", "command": "wm size reset; wm density reset", "danger": true},
+
+  {"category": "Приложения", "title": "Установленные приложения", "description": "Все приложения, установленные пользователем", "command": "pm list packages -3"},
+  {"category": "Приложения", "title": "Замороженные приложения", "description": "Отключённые (замороженные) приложения", "command": "pm list packages -d"},
+  {"category": "Приложения", "title": "Где лежит APK", "description": "Путь к файлу приложения", "command": "pm path {pkg}", "params": [{"name": "pkg", "hint": "Имя пакета, например com.android.chrome"}]},
+  {"category": "Приложения", "title": "Версия приложения", "description": "Версия и код версии", "command": "dumpsys package {pkg} | grep -m 2 -E 'versionName|versionCode'", "params": [{"name": "pkg", "hint": "Имя пакета"}]},
+  {"category": "Приложения", "title": "Разрешения приложения", "description": "Какие разрешения выданы", "command": "dumpsys package {pkg} | grep -E 'granted=true' | head -40", "params": [{"name": "pkg", "hint": "Имя пакета"}]},
+  {"category": "Приложения", "title": "Остановить приложение", "description": "Принудительно закрыть приложение", "command": "am force-stop {pkg}", "params": [{"name": "pkg", "hint": "Имя пакета"}], "danger": true},
+  {"category": "Приложения", "title": "Очистить данные приложения", "description": "Удаляет ВСЕ данные приложения: настройки, вход в аккаунт, файлы", "command": "pm clear {pkg}", "params": [{"name": "pkg", "hint": "Имя пакета"}], "danger": true},
+
+  {"category": "Диагностика", "title": "Последние сбои", "description": "Журнал падений приложений", "command": "logcat -d -b crash -t 50"},
+  {"category": "Диагностика", "title": "Последние 100 строк лога", "description": "Системный журнал", "command": "logcat -d -t 100"},
+  {"category": "Диагностика", "title": "Живой лог", "description": "Журнал в реальном времени — остановите кнопкой «Стоп»", "command": "logcat -v brief", "endless": true},
+  {"category": "Диагностика", "title": "Текущий экран", "description": "Какое приложение и экран сейчас открыты", "command": "dumpsys activity activities | grep -m 3 -E 'mResumedActivity|topResumedActivity'"},
+  {"category": "Диагностика", "title": "Температуры", "description": "Датчики температуры и состояние перегрева", "command": "dumpsys thermalservice | head -40"},
+  {"category": "Диагностика", "title": "Системные сервисы", "description": "Список сервисов Android", "command": "service list | head -60"}
+]

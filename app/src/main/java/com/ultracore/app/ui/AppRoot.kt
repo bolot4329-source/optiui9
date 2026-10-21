@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -45,6 +46,7 @@ import com.ultracore.app.ui.screens.HomeScreen
 import com.ultracore.app.ui.screens.OptimizerScreen
 import com.ultracore.app.ui.screens.PhasePlaceholder
 import com.ultracore.app.ui.screens.SorterScreen
+import com.ultracore.app.ui.screens.TerminalSection
 import com.ultracore.app.ui.screens.TweaksScreen
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.BarBlack
@@ -81,7 +83,9 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                // Lets the terminal's imePadding() lift the input exactly above the keyboard.
+                .consumeWindowInsets(padding),
         ) {
             SystemStatusHeader(
                 shizukuState = shizukuState,
@@ -132,20 +136,7 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
                         ),
                     )
                 }
-                composable(Destination.Terminal.route) {
-                    PhasePlaceholder(
-                        icon = Icons.Outlined.Terminal,
-                        title = "Терминал",
-                        phase = "Фаза 3",
-                        description = "Команды через Shizuku с живым выводом.",
-                        plannedFeatures = listOf(
-                            "Ввод команд с историей и автодополнением",
-                            "Каталог полезных команд с описаниями",
-                            "Макросы: несколько команд одной кнопкой",
-                            "Плитка в шторке для любимого макроса",
-                        ),
-                    )
-                }
+                composable(Destination.Terminal.route) { TerminalSection() }
             }
         }
     }

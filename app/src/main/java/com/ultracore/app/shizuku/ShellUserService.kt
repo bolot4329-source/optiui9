@@ -60,17 +60,21 @@ class ShellUserService : IShellService.Stub() {
                     }
 
                     val buf = ByteArray(4096)
+                    var lastByte: Byte = '\n'.code.toByte()
                     p.inputStream.use { input ->
                         while (true) {
                             val n = input.read(buf)
                             if (n < 0) break
                             out.write(buf, 0, n) // throws IOException when the app closed its side
                             out.flush()
+                            if (n > 0) lastByte = buf[n - 1]
                         }
                     }
                     val code = p.waitFor()
                     watchdog.interrupt()
-                    out.write("\n${ShellMarkers.EXIT_CODE} $code\n".toByteArray())
+                    // Marker goes on its own line without adding an empty line after the output.
+                    val prefix = if (lastByte == '\n'.code.toByte()) "" else "\n"
+                    out.write("$prefix${ShellMarkers.EXIT_CODE} $code\n".toByteArray())
                 } catch (_: IOException) {
                     // The app closed the pipe ("Стоп") — kill the command.
                     process?.destroyForcibly()

@@ -23,15 +23,20 @@ import com.ultracore.app.ui.theme.TextSecondary
 fun SubTabs(
     titles: List<String>,
     modifier: Modifier = Modifier,
+    /** Pass [selected] + [onSelect] when the parent needs to switch tabs itself. */
+    selected: Int? = null,
+    onSelect: ((Int) -> Unit)? = null,
     content: @Composable (index: Int) -> Unit,
 ) {
-    var selected by rememberSaveable { mutableIntStateOf(0) }
+    var internalSelected by rememberSaveable { mutableIntStateOf(0) }
+    val current = selected ?: internalSelected
+    val select: (Int) -> Unit = { index -> if (onSelect != null) onSelect(index) else internalSelected = index }
     Column(modifier) {
         val tabs = @Composable {
             titles.forEachIndexed { index, title ->
                 Tab(
-                    selected = selected == index,
-                    onClick = { selected = index },
+                    selected = current == index,
+                    onClick = { select(index) },
                     text = { Text(title, maxLines = 1) },
                     selectedContentColor = NeonCyan,
                     unselectedContentColor = TextSecondary,
@@ -42,7 +47,7 @@ fun SubTabs(
         if (titles.size > 3) {
             // Many tabs: let them scroll instead of squeezing long titles.
             ScrollableTabRow(
-                selectedTabIndex = selected,
+                selectedTabIndex = current,
                 containerColor = AmoledBlack,
                 contentColor = NeonCyan,
                 edgePadding = 8.dp,
@@ -52,7 +57,7 @@ fun SubTabs(
             )
         } else {
             TabRow(
-                selectedTabIndex = selected,
+                selectedTabIndex = current,
                 containerColor = AmoledBlack,
                 contentColor = NeonCyan,
                 divider = {},
@@ -60,6 +65,6 @@ fun SubTabs(
                 tabs = tabs,
             )
         }
-        content(selected)
+        content(current)
     }
 }
