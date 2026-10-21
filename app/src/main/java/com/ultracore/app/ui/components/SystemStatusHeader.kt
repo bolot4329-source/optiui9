@@ -2,6 +2,7 @@ package com.ultracore.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,17 +20,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -62,18 +70,36 @@ fun SystemStatusHeader(
     onRunShellTest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // When everything is ready the header shrinks to one line; tap to see details.
+    // If something needs attention it is always shown in full.
+    val allOk = shizukuState is ShizukuState.Connected && storageGranted
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    if (allOk && !expanded) {
+        CompactHeader(shizukuState as ShizukuState.Connected, onExpand = { expanded = true }, modifier = modifier)
+        return
+    }
+
     UltraCard(modifier = modifier) {
-        Text(
-            text = "UltraCore",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary,
-        )
-        Text(
-            text = DeviceInfo.shortTitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "UltraCore",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                )
+                Text(
+                    text = DeviceInfo.shortTitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                )
+            }
+            if (allOk) {
+                IconButton(onClick = { expanded = false }) {
+                    Icon(Icons.Outlined.ExpandLess, contentDescription = "Свернуть", tint = TextSecondary)
+                }
+            }
+        }
 
         Spacer(Modifier.size(12.dp))
 
@@ -152,6 +178,42 @@ fun SystemStatusHeader(
             is ShellTestState.Failure -> ShellOutput("Ошибка: ${shellTest.message}", NeonRed)
             ShellTestState.Running -> ShellOutput("Выполняю…", TextSecondary)
             ShellTestState.Idle -> Unit
+        }
+    }
+}
+
+@Composable
+private fun CompactHeader(state: ShizukuState.Connected, onExpand: () -> Unit, modifier: Modifier) {
+    UltraCard(modifier = modifier.clickable(onClick = onExpand)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "UltraCore",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                )
+                Text(
+                    text = DeviceInfo.shortTitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(NeonGreen, CircleShape)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Shizuku · ${state.mode.label}",
+                style = MaterialTheme.typography.labelMedium,
+                color = NeonGreen,
+            )
+            Spacer(Modifier.width(4.dp))
+            Icon(Icons.Outlined.ExpandMore, contentDescription = "Подробнее", tint = TextSecondary)
         }
     }
 }

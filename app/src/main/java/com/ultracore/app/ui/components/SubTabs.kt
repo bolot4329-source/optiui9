@@ -3,6 +3,7 @@ package com.ultracore.app.ui.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -26,22 +27,38 @@ fun SubTabs(
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier) {
-        TabRow(
-            selectedTabIndex = selected,
-            containerColor = AmoledBlack,
-            contentColor = NeonCyan,
-            divider = {},
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        ) {
+        val tabs = @Composable {
             titles.forEachIndexed { index, title ->
                 Tab(
                     selected = selected == index,
                     onClick = { selected = index },
-                    text = { Text(title) },
+                    text = { Text(title, maxLines = 1) },
                     selectedContentColor = NeonCyan,
                     unselectedContentColor = TextSecondary,
                 )
             }
+        }
+        val rowModifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        if (titles.size > 3) {
+            // Many tabs: let them scroll instead of squeezing long titles.
+            ScrollableTabRow(
+                selectedTabIndex = selected,
+                containerColor = AmoledBlack,
+                contentColor = NeonCyan,
+                edgePadding = 8.dp,
+                divider = {},
+                modifier = rowModifier,
+                tabs = tabs,
+            )
+        } else {
+            TabRow(
+                selectedTabIndex = selected,
+                containerColor = AmoledBlack,
+                contentColor = NeonCyan,
+                divider = {},
+                modifier = rowModifier,
+                tabs = tabs,
+            )
         }
         content(selected)
     }

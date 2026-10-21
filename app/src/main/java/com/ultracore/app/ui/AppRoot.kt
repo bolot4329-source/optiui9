@@ -39,11 +39,13 @@ import androidx.navigation.compose.rememberNavController
 import com.ultracore.app.shizuku.ShizukuManager
 import com.ultracore.app.ui.components.SubTabs
 import com.ultracore.app.ui.components.SystemStatusHeader
+import com.ultracore.app.ui.screens.BatteryScreen
 import com.ultracore.app.ui.screens.CleanerScreen
 import com.ultracore.app.ui.screens.HomeScreen
 import com.ultracore.app.ui.screens.OptimizerScreen
 import com.ultracore.app.ui.screens.PhasePlaceholder
 import com.ultracore.app.ui.screens.SorterScreen
+import com.ultracore.app.ui.screens.TweaksScreen
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.BarBlack
 import com.ultracore.app.ui.theme.NeonCyan
@@ -101,8 +103,13 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
                     .fillMaxWidth(),
             ) {
                 composable(Destination.Home.route) {
-                    SubTabs(listOf("Обзор", "Оптимизация")) { tab ->
-                        if (tab == 0) HomeScreen() else OptimizerScreen()
+                    SubTabs(listOf("Обзор", "Батарея", "Твики", "Оптимизация")) { tab ->
+                        when (tab) {
+                            0 -> HomeScreen()
+                            1 -> BatteryScreen()
+                            2 -> TweaksScreen()
+                            else -> OptimizerScreen()
+                        }
                     }
                 }
                 composable(Destination.Files.route) {
