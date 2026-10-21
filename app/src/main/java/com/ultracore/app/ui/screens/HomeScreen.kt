@@ -74,6 +74,18 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary,
                         )
+                        report?.results?.takeIf { it.isNotEmpty() }?.let { results ->
+                            val ok = results.count { it.status == CapabilityStatus.AVAILABLE }
+                            val partial = results.count { it.status == CapabilityStatus.PARTIAL }
+                            val locked = results.count { it.status == CapabilityStatus.UNAVAILABLE }
+                            Row(Modifier.padding(top = 6.dp)) {
+                                Text("✅ $ok", color = NeonGreen, style = MaterialTheme.typography.labelLarge)
+                                Spacer(Modifier.width(14.dp))
+                                Text("⚠️ $partial", color = NeonAmber, style = MaterialTheme.typography.labelLarge)
+                                Spacer(Modifier.width(14.dp))
+                                Text("🔒 $locked", color = NeonRed, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
                     }
                     if (checking) {
                         CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = NeonCyan)
@@ -156,6 +168,11 @@ private fun CapabilityRow(result: CapabilityResult) {
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = TextPrimary,
+                )
+                Text(
+                    result.capability.usedIn,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonCyan,
                 )
                 if (result.reason.isNotBlank()) {
                     Text(

@@ -32,11 +32,18 @@ class CapabilityChecker(context: Context) {
 
     /** Cached report is valid only for the current firmware. */
     val needsCheck: Boolean
-        get() = _report.value?.fingerprint != DeviceInfo.fingerprint
+        get() = _report.value.let {
+            it == null || it.fingerprint != DeviceInfo.fingerprint || it.version != CapabilityReport.CURRENT_VERSION
+        }
 
     suspend fun check(): CapabilityReport = mutex.withLock {
         val results = Capability.entries.map { probe(it) }
-        val report = CapabilityReport(DeviceInfo.fingerprint, System.currentTimeMillis(), results)
+        val report = CapabilityReport(
+            DeviceInfo.fingerprint,
+            System.currentTimeMillis(),
+            results,
+            CapabilityReport.CURRENT_VERSION,
+        )
         _report.value = report
         withContext(Dispatchers.IO) {
             runCatching { file.writeText(json.encodeToString(CapabilityReport.serializer(), report)) }
@@ -69,6 +76,12 @@ class CapabilityChecker(context: Context) {
                     }
                 }
                 Capability.DEVICE_CONFIG -> fromResult(capability, run("device_config get activity_manager max_phantom_processes"))
+                Capability.LOGS -> fromResult(capability, run("logcat -d -t 1"))
+                // Commands aimed at a package that does not exist: «unknown package» means the
+                // command itself is allowed, a SecurityException means the firmware blocks it.
+                Capability.APP_FREEZE -> reachable(capability, run("pm disable-user --user 0 $PROBE_PACKAGE"))
+                Capability.APP_REMOVE -> reachable(capability, run("pm uninstall -k --user 0 $PROBE_PACKAGE"))
+                Capability.APP_INSTALL -> probeInstall()
                 Capability.ROOT_FEATURES -> if (ShizukuManager.mode == ShizukuMode.ROOT) {
                     ok(capability)
                 } else {
@@ -97,6 +110,35 @@ class CapabilityChecker(context: Context) {
             run("settings delete global $key")
         }
         return fromResult(Capability.SETTINGS_WRITE, write)
+    }
+
+    /** Command reached the system service (any answer except a permission refusal). */
+    private fun reachable(capability: Capability, result: ShellResult): CapabilityResult {
+        if (result.timedOut) return CapabilityResult(capability, CapabilityStatus.PARTIAL, "Команда не ответила вовремя")
+        val text = result.combined.lowercase()
+        val blocked = "securityexception" in text || "permission denial" in text ||
+            "not allowed" in text || "does not have permission" in text
+        return if (blocked) {
+            CapabilityResult(capability, CapabilityStatus.UNAVAILABLE, ErrorClassifier.FIRMWARE_HINT)
+        } else {
+            ok(capability)
+        }
+    }
+
+    /** Creates an empty install session and abandons it right away. */
+    private suspend fun probeInstall(): CapabilityResult {
+        val create = run("pm install-create")
+        val session = Regex("\\[(\\d+)]").find(create.combined)?.groupValues?.get(1)
+        if (session != null) {
+            run("pm install-abandon $session")
+            return ok(Capability.APP_INSTALL)
+        }
+        val reach = reachable(Capability.APP_INSTALL, create)
+        return if (reach.status == CapabilityStatus.AVAILABLE) {
+            CapabilityResult(Capability.APP_INSTALL, CapabilityStatus.PARTIAL, "Сессия установки не создалась: ${create.combined.lineSequence().firstOrNull().orEmpty()}")
+        } else {
+            reach
+        }
     }
 
     private suspend fun run(command: String): ShellResult = ShizukuManager.execResult(command, PROBE_TIMEOUT_SECONDS)
@@ -128,5 +170,6 @@ class CapabilityChecker(context: Context) {
     companion object {
         private const val FILE_NAME = "capabilities.json"
         private const val PROBE_TIMEOUT_SECONDS = 15
+        private const val PROBE_PACKAGE = "com.ultracore.probe.does.not.exist"
     }
 }
