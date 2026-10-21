@@ -1,5 +1,6 @@
 package com.ultracore.app.shizuku
 
+import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -24,6 +25,64 @@ class ShellUserService : IShellService.Stub() {
         if (command == null || command.isBlank()) return ""
         val timeout = timeoutSeconds.coerceIn(1, MAX_TIMEOUT_SECONDS).toLong()
         return runShell(command, timeout)
+    }
+
+    override fun execResult(command: String?, timeoutSeconds: Int): ShellResult {
+        if (command == null || command.isBlank()) {
+            return ShellResult(0, "", "", truncated = false, timedOut = false)
+        }
+        return runShellResult(command, timeoutSeconds.coerceIn(1, MAX_TIMEOUT_SECONDS).toLong())
+    }
+
+    override fun execStream(command: String?): ParcelFileDescriptor? {
+        if (command == null || command.isBlank()) return null
+        val pipe = ParcelFileDescriptor.createPipe()
+        val readSide = pipe[0]
+        val writeSide = pipe[1]
+
+        thread(isDaemon = true, name = "ultracore-shell-stream") {
+            var process: Process? = null
+            ParcelFileDescriptor.AutoCloseOutputStream(writeSide).use { out ->
+                try {
+                    process = ProcessBuilder("sh", "-c", command)
+                        .redirectErrorStream(true)
+                        .start()
+                    val p = process!!
+                    p.outputStream.close()
+
+                    // Hard limit so a forgotten command can't run forever.
+                    val watchdog = thread(isDaemon = true, name = "ultracore-stream-watchdog") {
+                        try {
+                            if (!p.waitFor(STREAM_MAX_SECONDS, TimeUnit.SECONDS)) p.destroyForcibly()
+                        } catch (_: InterruptedException) {
+                            // Command finished normally.
+                        }
+                    }
+
+                    val buf = ByteArray(4096)
+                    p.inputStream.use { input ->
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n) // throws IOException when the app closed its side
+                            out.flush()
+                        }
+                    }
+                    val code = p.waitFor()
+                    watchdog.interrupt()
+                    out.write("\n${ShellMarkers.EXIT_CODE} $code\n".toByteArray())
+                } catch (_: IOException) {
+                    // The app closed the pipe ("Стоп") — kill the command.
+                    process?.destroyForcibly()
+                } catch (t: Throwable) {
+                    process?.destroyForcibly()
+                    runCatching {
+                        out.write("${ShellMarkers.LAUNCH_ERROR} ${t.message ?: t.javaClass.simpleName}\n".toByteArray())
+                    }
+                }
+            }
+        }
+        return readSide
     }
 
     override fun listDirectory(path: String?): List<String> {
@@ -108,7 +167,65 @@ class ShellUserService : IShellService.Stub() {
             "$STORAGE_ROOT/Ringtones",
         )
 
+        // Upper bound for execStream commands (30 min).
+        private const val STREAM_MAX_SECONDS = 1_800L
+
+        // execResult: each of stdout/stderr is capped separately (UTF-16 → ~2 bytes per char).
+        private const val MAX_RESULT_CHARS = 120_000
+
         fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+        /** Runs a command with separate stdout/stderr and a timeout. Never throws. */
+        fun runShellResult(command: String, timeoutSeconds: Long): ShellResult {
+            return try {
+                val process = ProcessBuilder("sh", "-c", command).start()
+                process.outputStream.close()
+
+                val stdout = StringBuffer()
+                val stderr = StringBuffer()
+                val outReader = drain(process.inputStream, stdout, "ultracore-stdout")
+                val errReader = drain(process.errorStream, stderr, "ultracore-stderr")
+
+                val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+                if (!finished) process.destroyForcibly()
+                outReader.join(2_000)
+                errReader.join(2_000)
+
+                ShellResult(
+                    exitCode = if (finished) process.exitValue() else ShellResult.CODE_TIMEOUT,
+                    stdout = stdout.toString().trimEnd(),
+                    stderr = stderr.toString().trimEnd(),
+                    truncated = stdout.length >= MAX_RESULT_CHARS || stderr.length >= MAX_RESULT_CHARS,
+                    timedOut = !finished,
+                )
+            } catch (t: Throwable) {
+                ShellResult(
+                    exitCode = ShellResult.CODE_LAUNCH_ERROR,
+                    stdout = "",
+                    stderr = t.message ?: t.javaClass.simpleName,
+                    truncated = false,
+                    timedOut = false,
+                )
+            }
+        }
+
+        private fun drain(stream: java.io.InputStream, into: StringBuffer, name: String): Thread =
+            thread(isDaemon = true, name = name) {
+                try {
+                    stream.bufferedReader().use { r ->
+                        val chunk = CharArray(4096)
+                        while (true) {
+                            val n = r.read(chunk)
+                            if (n < 0) break
+                            if (into.length < MAX_RESULT_CHARS) {
+                                into.append(chunk, 0, minOf(n, MAX_RESULT_CHARS - into.length))
+                            }
+                        }
+                    }
+                } catch (_: IOException) {
+                    // Stream closed after destroyForcibly().
+                }
+            }
 
         fun runShell(command: String, timeoutSeconds: Long): String {
             return try {

@@ -101,7 +101,7 @@ class OptimizerViewModel : ViewModel() {
         job = viewModelScope.launch {
             _boostSummary.value = null
             val collected = mutableListOf<OptimizationResult>()
-            repository.note("▶ Полная оптимизация One UI 9: старт")
+            repository.note("▶ Полная оптимизация: старт")
             try {
                 steps.forEachIndexed { index, tool ->
                     _running.value = RunningState(

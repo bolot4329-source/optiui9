@@ -1,9 +1,11 @@
 package com.ultracore.app.shizuku
 
 import android.content.ComponentName
+import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.ultracore.app.BuildConfig
 import kotlinx.coroutines.CoroutineScope
@@ -11,11 +13,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import rikka.shizuku.Shizuku
 
 /**
@@ -23,6 +30,7 @@ import rikka.shizuku.Shizuku
  * and binds [ShellUserService] (UID 2000) through AIDL.
  *
  * Call [init] once from Application.onCreate().
+ * Works the same on any phone: only the public Shizuku API and standard shell are used.
  */
 object ShizukuManager {
 
@@ -41,6 +49,7 @@ object ShizukuManager {
     private var service: IShellService? = null
     private var bound = false
     private var initialized = false
+    private var appContext: Context? = null
     private var bindTimeoutJob: Job? = null
 
     private val userServiceArgs: Shizuku.UserServiceArgs by lazy {
@@ -70,7 +79,12 @@ object ShizukuManager {
                     ?.firstOrNull { it.isNotBlank() }
                     ?.trim()
                     ?: "uid=${runCatching { Shizuku.getUid() }.getOrDefault(-1)}"
-                _state.value = ShizukuState.Connected(uidInfo)
+                val mode = if (runCatching { Shizuku.getUid() }.getOrDefault(-1) == 0) {
+                    ShizukuMode.ROOT
+                } else {
+                    ShizukuMode.ADB
+                }
+                _state.value = ShizukuState.Connected(uidInfo, mode)
             }
         }
 
@@ -90,7 +104,7 @@ object ShizukuManager {
         service = null
         bound = false
         bindTimeoutJob?.cancel()
-        _state.value = ShizukuState.NotRunning
+        _state.value = notRunningState()
     }
 
     private val permissionResultListener =
@@ -103,9 +117,10 @@ object ShizukuManager {
             }
         }
 
-    fun init() {
+    fun init(context: Context) {
         if (initialized) return
         initialized = true
+        appContext = context.applicationContext
         Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
         Shizuku.addBinderDeadListener(binderDeadListener)
         Shizuku.addRequestPermissionResultListener(permissionResultListener)
@@ -116,14 +131,14 @@ object ShizukuManager {
     fun refresh() {
         val blocked: ShizukuState? = try {
             when {
-                !Shizuku.pingBinder() -> ShizukuState.NotRunning
+                !Shizuku.pingBinder() -> notRunningState()
                 Shizuku.isPreV11() -> ShizukuState.Error("Shizuku слишком старый — обновите приложение Shizuku")
                 Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED -> ShizukuState.PermissionDenied
                 else -> null
             }
         } catch (t: Throwable) {
             Log.e(TAG, "refresh failed", t)
-            ShizukuState.NotRunning
+            notRunningState()
         }
 
         if (blocked != null) {
@@ -138,7 +153,7 @@ object ShizukuManager {
     fun requestPermission() {
         try {
             if (!Shizuku.pingBinder()) {
-                _state.value = ShizukuState.NotRunning
+                _state.value = notRunningState()
                 return
             }
             if (Shizuku.isPreV11()) {
@@ -189,6 +204,24 @@ object ShizukuManager {
         }
     }
 
+    /** Shizuku binder is dead: either the app is missing or its service is stopped. */
+    private fun notRunningState(): ShizukuState =
+        if (isShizukuInstalled()) ShizukuState.NotRunning else ShizukuState.NotInstalled
+
+    fun isShizukuInstalled(): Boolean {
+        val pm = appContext?.packageManager ?: return true
+        return try {
+            pm.getPackageInfo(SHIZUKU_PACKAGE, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
+    /** Current mode, or null when not connected. */
+    val mode: ShizukuMode?
+        get() = (_state.value as? ShizukuState.Connected)?.mode
+
     private fun requireService(): IShellService =
         service ?: throw IllegalStateException("Shizuku не подключён")
 
@@ -211,4 +244,29 @@ object ShizukuManager {
     suspend fun deletePath(path: String): Boolean = withContext(Dispatchers.IO) {
         requireService().deletePath(path)
     }
+
+    /**
+     * Runs a command and returns exit code, stdout and stderr separately.
+     * Never throws for shell errors; throws only when Shizuku is not connected.
+     */
+    suspend fun execResult(command: String, timeoutSeconds: Int = 60): ShellResult = withContext(Dispatchers.IO) {
+        requireService().execResult(command, timeoutSeconds)
+    }
+
+    /**
+     * Streams output of a long command line by line (terminal, logcat).
+     * Cancelling the collecting coroutine closes the pipe, which kills the command.
+     * The last line is "${ShellMarkers.EXIT_CODE} N".
+     */
+    fun stream(command: String): Flow<String> = flow {
+        val pfd: ParcelFileDescriptor = requireService().execStream(command)
+            ?: throw IllegalStateException("Пустая команда")
+        ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { reader ->
+            while (true) {
+                currentCoroutineContext().ensureActive()
+                val line = reader.readLine() ?: break
+                emit(line)
+            }
+        }
+    }.flowOn(Dispatchers.IO)
 }

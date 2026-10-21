@@ -34,7 +34,7 @@ private val UltraCoreColors = darkColorScheme(
     onError = AmoledBlack,
 )
 
-/** One UI 9 squircle-like radii. */
+/** Squircle-like radii. */
 val CardRadius = 24.dp
 
 private val UltraCoreShapes = Shapes(

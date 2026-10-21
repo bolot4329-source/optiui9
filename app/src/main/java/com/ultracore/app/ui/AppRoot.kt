@@ -11,9 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -36,9 +37,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ultracore.app.shizuku.ShizukuManager
+import com.ultracore.app.ui.components.SubTabs
 import com.ultracore.app.ui.components.SystemStatusHeader
 import com.ultracore.app.ui.screens.CleanerScreen
+import com.ultracore.app.ui.screens.HomeScreen
 import com.ultracore.app.ui.screens.OptimizerScreen
+import com.ultracore.app.ui.screens.PhasePlaceholder
 import com.ultracore.app.ui.screens.SorterScreen
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.BarBlack
@@ -47,9 +51,10 @@ import com.ultracore.app.ui.theme.NeonCyanDim
 import com.ultracore.app.ui.theme.TextSecondary
 
 private enum class Destination(val route: String, val label: String, val icon: ImageVector) {
-    Optimizer("optimizer", "Система", Icons.Outlined.Speed),
-    Cleaner("cleaner", "Очистка", Icons.Outlined.CleaningServices),
-    Sorter("sorter", "Сортировка", Icons.Outlined.FolderOpen),
+    Home("home", "Главная", Icons.Outlined.Home),
+    Files("files", "Файлы", Icons.Outlined.FolderOpen),
+    Apps("apps", "Приложения", Icons.Outlined.Apps),
+    Terminal("terminal", "Терминал", Icons.Outlined.Terminal),
 }
 
 @Composable
@@ -90,14 +95,50 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
 
             NavHost(
                 navController = navController,
-                startDestination = Destination.Optimizer.route,
+                startDestination = Destination.Home.route,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                composable(Destination.Optimizer.route) { OptimizerScreen() }
-                composable(Destination.Cleaner.route) { CleanerScreen() }
-                composable(Destination.Sorter.route) { SorterScreen() }
+                composable(Destination.Home.route) {
+                    SubTabs(listOf("Обзор", "Оптимизация")) { tab ->
+                        if (tab == 0) HomeScreen() else OptimizerScreen()
+                    }
+                }
+                composable(Destination.Files.route) {
+                    SubTabs(listOf("Очистка", "Сортировка")) { tab ->
+                        if (tab == 0) CleanerScreen() else SorterScreen()
+                    }
+                }
+                composable(Destination.Apps.route) {
+                    PhasePlaceholder(
+                        icon = Icons.Outlined.Apps,
+                        title = "Приложения",
+                        phase = "Фазы 4–5",
+                        description = "Управление приложениями и запуск их экранов.",
+                        plannedFeatures = listOf(
+                            "Заморозка и разморозка приложений",
+                            "Удаление системных приложений для пользователя с восстановлением",
+                            "Бэкап APK и установка .apk / .apks",
+                            "Песочница: автозаморозка после выключения экрана",
+                            "Запуск экранов приложений и ярлыки на рабочий стол",
+                        ),
+                    )
+                }
+                composable(Destination.Terminal.route) {
+                    PhasePlaceholder(
+                        icon = Icons.Outlined.Terminal,
+                        title = "Терминал",
+                        phase = "Фаза 3",
+                        description = "Команды через Shizuku с живым выводом.",
+                        plannedFeatures = listOf(
+                            "Ввод команд с историей и автодополнением",
+                            "Каталог полезных команд с описаниями",
+                            "Макросы: несколько команд одной кнопкой",
+                            "Плитка в шторке для любимого макроса",
+                        ),
+                    )
+                }
             }
         }
     }

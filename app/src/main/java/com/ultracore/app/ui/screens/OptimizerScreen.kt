@@ -311,7 +311,7 @@ private fun BoostCard(
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Полная оптимизация One UI 9",
+                        text = "Полная оптимизация",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,

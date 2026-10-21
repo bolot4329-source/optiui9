@@ -1,47 +1,39 @@
-# Project: UltraCore (System Optimizer, Deep Cleaner & Smart File Organizer for Galaxy S25 Ultra)
+# Project: UltraCore — Shizuku system toolbox for any Android phone
 
-## Target Environment & CI/CD
-- **Device & OS:** Samsung Galaxy S25 Ultra running **Android 17 (One UI 9)**
-- **Build System:** GitHub Actions CI/CD (`ubuntu-latest`). Do NOT rely on a pre-existing binary `gradle-wrapper.jar` in git.
-- **Toolchain Versions (STRICT for CI stability):**
-  - Android Gradle Plugin (AGP): `8.7.3`
-  - Kotlin: `2.0.21` (with `org.jetbrains.kotlin.plugin.compose` and `org.jetbrains.kotlin.plugin.serialization`)
-  - Gradle Version in CI: `8.10.2`
+Full spec: `docs/TZ.md` (Russian). Owner is a beginner: explain steps simply, in Russian.
+
+## Target & CI/CD
+- **Devices:** ANY Android smartphone, Android 15, 16, 17 and newer (also runs on 12–14). Tested on Samsung and Xiaomi, but **no brand-specific code**.
+- **Build:** GitHub Actions only (`.github/workflows/build.yml`). No `gradlew`/wrapper jar in git; CI installs Gradle 8.10.2 via `gradle/actions/setup-gradle`.
+- **Toolchain (STRICT for CI stability, change only as a dedicated step):**
+  - AGP `8.7.3`, Kotlin `2.0.21` (compose + serialization plugins), Gradle `8.10.2`, JVM target `17`
   - `minSdk = 31`, `compileSdk = 35`, `targetSdk = 35`
-  - Java/JVM Target: `17`
-- **UI Framework:** Jetpack Compose (Material 3), Pure AMOLED Dark Theme (`#000000` background, `#111113` cards, `#1E1E24` borders, One UI 9 squircle radius `24.dp`)
-- **Privileged Execution:** Shizuku API (`dev.rikka.shizuku:api:13.1.5` and `dev.rikka.shizuku:provider:13.1.5`)
+- **UI:** Jetpack Compose Material 3, Pure AMOLED (`#000000` bg, `#111113` cards, `#1E1E24` borders, radius `24.dp`), edge-to-edge.
+- **Privileged execution:** Shizuku `dev.rikka.shizuku:api/provider:13.1.5`.
 
-## Android 17 (One UI 9) Technical Rules (MUST FOLLOW)
-1. **Shizuku AIDL UserService Only:** NEVER call `Shizuku.newProcess()` (it is private in Shizuku 13+). Always bind an AIDL `UserService` (`IShellService.aidl` -> `ShellUserService.kt`) via `Shizuku.bindUserService()`.
-2. **Shell Execution inside UserService:** Execute commands via `ProcessBuilder("sh", "-c", command).redirectErrorStream(true).start()`. Read stdout with a timeout so the binder thread never hangs.
-3. **Restricted Storage Access (`Android/data` & `Android/obb`):**
-   - `ShellUserService` runs as `UID 2000 (shell)`, so all scanning and cleaning of `/storage/emulated/0/Android/data` and `/storage/emulated/0/Android/obb` MUST happen inside `ShellUserService`.
-   - Public storage (`Download`, `Documents`, `Pictures`, etc.) is managed directly from the app process using `MANAGE_EXTERNAL_STORAGE` (`Environment.isExternalStorageManager()`).
-4. **Package Visibility:** Always declare `QUERY_ALL_PACKAGES` in `AndroidManifest.xml` to cross-check `Android/data` directories against installed packages.
-5. **Safety & Rollback:** Every file organization operation must support Dry Run preview and save a rollback log (JSON via `kotlinx.serialization`) so the user can undo any batch file move in one tap.
-6. **Delete guard:** `ShellUserService.deletePath()` only deletes inside `/storage/emulated/0/` and refuses top-level protected folders (`Android`, `Android/data`, `DCIM`, `Download`, ...). Keep this guard in all future phases.
+## Rules (MUST FOLLOW)
+1. **No vendor branches.** Never `if (manufacturer == "samsung")`. Use only public Android APIs and AOSP commands (`pm`, `am`, `settings`, `cmd`, `dumpsys`, `device_config`). Decide availability by probing on the device (`core/CapabilityChecker`) and explain failures with `core/ErrorClassifier`. Show ✅/⚠️/🔒, never crash or fail silently.
+2. **Shizuku AIDL UserService only.** Never `Shizuku.newProcess()`. Bridge: `IShellService.aidl` → `ShellUserService.kt`, bound by `ShizukuManager` (`daemon(false)`).
+3. **Shell calls:**
+   - New code uses `ShizukuManager.execResult(cmd, timeout)` → `ShellResult(exitCode, stdout, stderr, truncated, timedOut)` (each stream capped at 120k chars for Binder).
+   - Long/live output: `ShizukuManager.stream(cmd): Flow<String>` via `ParcelFileDescriptor` pipe; cancelling the flow kills the command; last line is `ShellMarkers.EXIT_CODE N`.
+   - Legacy `exec`/`execWithTimeout` (string + `ShellMarkers`) stay for old modules.
+4. **Any AIDL change MUST bump `versionCode`**, otherwise Shizuku keeps the old UserService process.
+5. **ADB vs ROOT:** `ShizukuState.Connected.mode`. Without root: `exported=false` activities and `pm hide` are NOT possible — show 🔒 «нужен Root».
+6. **Storage:** `Android/data` & `Android/obb` only through `ShellUserService`; public storage from the app with `MANAGE_EXTERNAL_STORAGE`.
+7. **Safety:** file operations have Dry Run + rollback log (kotlinx.serialization JSON). `ShellUserService.deletePath()` guard (only inside `/storage/emulated/0/`, protected top-level folders refused) must be kept. Every system tweak saves the original value and has «Сбросить».
+8. `QUERY_ALL_PACKAGES` stays in the manifest (distribution outside Google Play).
 
-## Project layout
-- Package / applicationId: `com.ultracore.app`
-- AIDL: `app/src/main/aidl/com/ultracore/app/shizuku/IShellService.aidl`
-- Shizuku bridge: `app/src/main/java/com/ultracore/app/shizuku/` (`ShellUserService`, `ShizukuManager`, `ShizukuState`)
-- UI: `app/src/main/java/com/ultracore/app/ui/` (theme, components, screens)
-- CI signs debug builds with the committed `app/ultracore-debug.keystore` so every new APK installs over the previous one.
+## Project layout (`com.ultracore.app`)
+- `shizuku/` — `ShizukuManager`, `ShizukuState`(+`ShizukuMode`), `ShellUserService`, `ShellResult`, `ShellMarkers`; AIDL in `app/src/main/aidl/com/ultracore/app/shizuku/`
+- `core/` — `DeviceInfo`, `ErrorClassifier`, `Capability*`, `CapabilityChecker` (cache: `filesDir/capabilities.json`, re-check on `Build.FINGERPRINT` change)
+- `home/`, `optimizer/`, `cleaner/`, `sorter/` — feature logic (ViewModel + repository)
+- `ui/` — `AppRoot` (bottom bar: Главная | Файлы | Приложения | Терминал; `SubTabs` inside), `screens/`, `components/`, `theme/`
+- `storage/StoragePaths.kt` — ROOT, PROTECTED_DIRS, resolveInside, uniqueTarget
+- CI signs debug builds with committed `app/ultracore-debug.keystore` (APK installs over the previous one). Do not delete it.
 
-## Phases
-- Phase 1 (done, verified on device: uid=2000, ext_data_rw/ext_obb_rw, S938BXXUCDZIF): project skeleton, Shizuku AIDL bridge, status header, CI.
-- Phase 2 (done): `OptimizerScreen` + `optimizer/` package (`SystemOptimizerRepository`, `OptimizerViewModel`, `OptimizerModels`).
-  - Telemetry: StatFs(/data), /proc/meminfo (RAM, Swap/ZRAM), refreshed every 3 s while STARTED.
-  - Modules: pm trim-caches 999G · am kill-all · logcat -b all -c + sm fstrim · per-package `cmd package compile -m speed-profile -f` (Flow progress, cancellable between packages) · cmd package bg-dexopt-job (600 s).
-  - One-Tap Ultra Boost order: TrimCaches → FreeRam → LogsAndTrim → ArtCompile.
-  - `execCommandWithTimeout(cmd, 1..600)` in AIDL; success/failure detected via `ShellMarkers`.
-  - Rule: any AIDL change MUST bump `versionCode`, otherwise Shizuku keeps the old UserService process.
-- Phase 3 (done): `CleanerScreen` + `cleaner/` (`CleanerRepository`, `CleanerViewModel`, `CleanerModels`).
-  - Scan only, delete after explicit confirmation. Categories: orphan Android/data+obb dirs (via Shizuku; installed set = PackageManager incl. uninstalled-with-data + `pm list packages -u`; aborts if < 50 packages), `.thumbnails`, `*.log/*.tmp/*.temp`, topmost empty folders (never `StoragePaths.PROTECTED_DIRS`), duplicates ≥ 1 MB (size → partial hash → SHA-256, oldest copy kept).
-  - Deleted files are reported to MediaScanner.
-- Phase 4 (done): `SorterScreen` + `sorter/` (`SorterRepository`, `SorterViewModel`, `SorterModels`).
-  - Rules in `filesDir/sort_rules.json`, history in `filesDir/sort_history.json` (last 20 batches), kotlinx.serialization.
-  - Only top-level files of the source dir; first matching rule wins; target template {yyyy} {MM} {dd} {ext}; never overwrite (" (1)" suffix); Android/ is off-limits.
-  - Dry Run plan → execute → batch saved even if cancelled → undo restores and removes empty created dirs.
-- Shared: `storage/StoragePaths.kt` (ROOT, PROTECTED_DIRS, resolveInside, uniqueTarget), `ui/components/Common.kt`.
+## Status
+- v1 (done): Shizuku bridge, Optimizer (trim-caches, kill-all, logcat clear + fstrim, ART compile, bg-dexopt), Cleaner (orphan Android/data+obb, thumbnails, logs/tmp, empty dirs, duplicates), Sorter (rules, dry run, undo).
+- **TZ v3 Phase 1 (done):** device-neutral texts, `ShellResult` + `execStream` in AIDL (versionCode 4), NotInstalled state + ADB/ROOT mode, `CapabilityChecker`/`ErrorClassifier`, 4-tab navigation, Home «Обзор» with capability list.
+- Next: Phase 2 — battery passport (public API → universal `dumpsys battery` parser → `/sys` if readable) and quick tweaks (animations, refresh rate via `peak/min_refresh_rate` + verify with `Display.getRefreshRate()`, phantom process killer, trim caches) with reset.
+- Then: Phase 3 Terminal & macros (Room), Phase 4 Activity Launcher, Phase 5 App Manager & Sandbox, Phase 6 compatibility screen polish.

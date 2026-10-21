@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ultracore.app.core.DeviceInfo
 import com.ultracore.app.shizuku.ShizukuState
 import com.ultracore.app.ui.ShellTestState
 import com.ultracore.app.ui.theme.AmoledBlack
@@ -69,7 +70,7 @@ fun SystemStatusHeader(
             color = TextPrimary,
         )
         Text(
-            text = "Galaxy S25 Ultra · Android 17 · One UI 9",
+            text = DeviceInfo.shortTitle,
             style = MaterialTheme.typography.bodySmall,
             color = TextSecondary,
         )
@@ -84,7 +85,7 @@ fun SystemStatusHeader(
             statusColor = shizuku.color,
             actionLabel = shizuku.actionLabel,
             onAction = when (shizukuState) {
-                ShizukuState.NotRunning -> onOpenShizuku
+                ShizukuState.NotInstalled, ShizukuState.NotRunning -> onOpenShizuku
                 ShizukuState.PermissionDenied -> onRequestShizuku
                 is ShizukuState.Error -> onReconnectShizuku
                 else -> null
@@ -135,7 +136,7 @@ fun SystemStatusHeader(
                 Icon(Icons.Outlined.Terminal, contentDescription = null, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(8.dp))
-            Text("Тест Shell (Android 17)")
+            Text("Тест Shell")
         }
         if (!connected) {
             Text(
@@ -158,10 +159,11 @@ fun SystemStatusHeader(
 private data class ShizukuUi(val text: String, val color: Color, val actionLabel: String?)
 
 private fun describeShizuku(state: ShizukuState): ShizukuUi = when (state) {
-    ShizukuState.NotRunning -> ShizukuUi("Не запущен", NeonRed, "Открыть Shizuku")
+    ShizukuState.NotInstalled -> ShizukuUi("Не установлен", NeonRed, "Установить")
+    ShizukuState.NotRunning -> ShizukuUi("Не запущен — после перезагрузки его нужно запускать заново", NeonRed, "Открыть Shizuku")
     ShizukuState.PermissionDenied -> ShizukuUi("Нет разрешения", NeonAmber, "Разрешить")
     ShizukuState.Connecting -> ShizukuUi("Подключение…", NeonAmber, null)
-    is ShizukuState.Connected -> ShizukuUi("Подключено · ${state.uidInfo}", NeonGreen, null)
+    is ShizukuState.Connected -> ShizukuUi("Подключено · ${state.mode.label} · ${state.uidInfo}", NeonGreen, null)
     is ShizukuState.Error -> ShizukuUi(state.message, NeonRed, "Подключить")
 }
 

@@ -51,6 +51,6 @@ class MainViewModel : ViewModel() {
 
     companion object {
         const val SHELL_TEST_COMMAND =
-            "id && getprop ro.build.version.release && getprop ro.build.PDA"
+            "id && getprop ro.build.version.release && getprop ro.build.display.id"
     }
 }
