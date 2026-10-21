@@ -43,6 +43,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Invisible trampoline for home-screen shortcuts to other apps' screens.
+             Exported so every launcher can open it; requests without UltraCore's secret token are ignored. -->
+        <activity
+            android:name=".launcher.ProxyActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Quick-settings tile: runs the macro marked with a star. -->
         <service
             android:name=".terminal.MacroTileService"

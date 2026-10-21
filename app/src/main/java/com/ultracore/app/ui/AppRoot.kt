@@ -43,6 +43,7 @@ import com.ultracore.app.ui.components.SystemStatusHeader
 import com.ultracore.app.ui.screens.BatteryScreen
 import com.ultracore.app.ui.screens.CleanerScreen
 import com.ultracore.app.ui.screens.HomeScreen
+import com.ultracore.app.ui.screens.LauncherScreen
 import com.ultracore.app.ui.screens.OptimizerScreen
 import com.ultracore.app.ui.screens.PhasePlaceholder
 import com.ultracore.app.ui.screens.SorterScreen
@@ -122,19 +123,24 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
                     }
                 }
                 composable(Destination.Apps.route) {
-                    PhasePlaceholder(
-                        icon = Icons.Outlined.Apps,
-                        title = "Приложения",
-                        phase = "Фазы 4–5",
-                        description = "Управление приложениями и запуск их экранов.",
-                        plannedFeatures = listOf(
-                            "Заморозка и разморозка приложений",
-                            "Удаление системных приложений для пользователя с восстановлением",
-                            "Бэкап APK и установка .apk / .apks",
-                            "Песочница: автозаморозка после выключения экрана",
-                            "Запуск экранов приложений и ярлыки на рабочий стол",
-                        ),
-                    )
+                    SubTabs(listOf("Экраны", "Управление")) { tab ->
+                        if (tab == 0) {
+                            LauncherScreen()
+                        } else {
+                            PhasePlaceholder(
+                                icon = Icons.Outlined.Apps,
+                                title = "Управление приложениями",
+                                phase = "Фаза 5",
+                                description = "Заморозка, удаление, бэкап и установка приложений.",
+                                plannedFeatures = listOf(
+                                    "Заморозка и разморозка приложений",
+                                    "Удаление системных приложений для пользователя с восстановлением",
+                                    "Бэкап APK и установка .apk / .apks",
+                                    "Песочница: автозаморозка после выключения экрана",
+                                ),
+                            )
+                        }
+                    }
                 }
                 composable(Destination.Terminal.route) { TerminalSection() }
             }
