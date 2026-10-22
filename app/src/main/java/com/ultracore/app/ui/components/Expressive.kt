@@ -110,8 +110,9 @@ fun MorphChip(
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = container,
             contentColor = content,
-            disabledContainerColor = Color.Transparent,
-            disabledContentColor = TextSecondary,
+            // A selected chip keeps a faint fill while disabled, so the current value stays visible.
+            disabledContainerColor = if (selected) NeonCyanDim.copy(alpha = 0.45f) else Color.Transparent,
+            disabledContentColor = if (selected) NeonCyan.copy(alpha = 0.7f) else TextSecondary,
         ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {

@@ -31,7 +31,10 @@ class TweaksViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repository = TweaksRepository(app)
 
-    private val _state = MutableStateFlow(TweaksState(refreshRates = repository.supportedRefreshRates()))
+    private val _state = MutableStateFlow(TweaksState(
+            refreshRates = repository.supportedRefreshRates(),
+            currentRefresh = repository.currentRefreshRate(),
+        ))
     val state: StateFlow<TweaksState> = _state.asStateFlow()
 
     init {

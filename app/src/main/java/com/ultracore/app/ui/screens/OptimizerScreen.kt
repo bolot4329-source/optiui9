@@ -1,5 +1,7 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.PrimaryButton
+import com.ultracore.app.ui.components.SmallActionButton
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -365,24 +367,12 @@ private fun BoostCard(
                 Spacer(Modifier.height(12.dp))
                 StopButton(onCancel)
             } else {
-                Button(
+                PrimaryButton(
+                    text = "Запустить в 1 тап",
                     onClick = onStart,
                     enabled = connected && running == null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonCyan,
-                        contentColor = AmoledBlack,
-                        disabledContainerColor = CardBorder,
-                        disabledContentColor = TextSecondary,
-                    ),
-                ) {
-                    Icon(Icons.Outlined.Bolt, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Запустить в 1 тап", fontWeight = FontWeight.Bold)
-                }
+                    icon = Icons.Outlined.Bolt,
+                )
             }
 
             if (summary != null && boost == null) {
@@ -441,19 +431,7 @@ private fun ToolCard(
             }
             if (!isRunning) {
                 Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = onRun,
-                    enabled = connected && !anyRunning,
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonCyan,
-                        contentColor = AmoledBlack,
-                        disabledContainerColor = CardBorder,
-                        disabledContentColor = TextSecondary,
-                    ),
-                ) {
-                    Text("Запуск", style = MaterialTheme.typography.labelLarge)
-                }
+                SmallActionButton(text = "Запуск", onClick = onRun, enabled = connected && !anyRunning)
             }
         }
 

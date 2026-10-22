@@ -98,11 +98,14 @@ class TweaksRepository(context: Context) {
     private fun display(): Display? =
         appContext.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)
 
-    /** Refresh rates the screen really supports, e.g. [60, 120]. */
+    /**
+     * Refresh rates worth locking, e.g. [60, 120]. Adaptive (LTPO) screens also list 1–48 Hz modes
+     * for still images; locking the whole UI to those would make it stutter, so they are hidden.
+     */
     fun supportedRefreshRates(): List<Int> =
         display()?.supportedModes
             ?.map { it.refreshRate.roundToInt() }
-            ?.filter { it > 0 }
+            ?.filter { it >= MIN_LOCKABLE_HZ }
             ?.distinct()
             ?.sorted()
             .orEmpty()
@@ -235,6 +238,7 @@ class TweaksRepository(context: Context) {
     companion object {
         private const val TIMEOUT = 15
         private const val VERIFY_DELAY_MS = 1_500L
+        private const val MIN_LOCKABLE_HZ = 60
         private const val PHANTOM_UNLIMITED = "2147483647"
 
         val ANIMATION_SCALES = listOf("0.0", "0.25", "0.5", "0.75", "1.0")

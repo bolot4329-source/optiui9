@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -78,14 +79,12 @@ fun SystemStatusHeader(
     onRunShellTest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // When everything is ready the header shrinks to one line; tap to see details.
-    // If something needs attention it is always shown in full.
-    val allOk = shizukuState is ShizukuState.Connected && storageGranted
+    // The header is a one-line pill by default — also when something needs attention: the pill
+    // then names the problem and carries the fix button. Tap it for the full details.
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val compact = allOk && !expanded
     // Springy morph between the one-line and the full header.
     AnimatedContent(
-        targetState = compact,
+        targetState = !expanded,
         transitionSpec = {
             (fadeIn(ExpressiveMotion.effects()) + scaleIn(ExpressiveMotion.spatialDefault(), initialScale = 0.96f)) togetherWith
                 fadeOut(ExpressiveMotion.effects()) using
@@ -94,11 +93,15 @@ fun SystemStatusHeader(
         label = "header",
         modifier = modifier,
     ) { isCompact ->
-        if (isCompact && shizukuState is ShizukuState.Connected) {
-            CompactHeader(shizukuState, onExpand = { expanded = true }, modifier = Modifier)
+        if (isCompact) {
+            CompactHeader(
+                shizukuState, storageGranted,
+                onExpand = { expanded = true },
+                onOpenShizuku, onRequestShizuku, onReconnectShizuku, onGrantStorage,
+            )
         } else {
             FullHeader(
-                shizukuState, storageGranted, shellTest, allOk,
+                shizukuState, storageGranted, shellTest,
                 onCollapse = { expanded = false },
                 onOpenShizuku, onRequestShizuku, onReconnectShizuku, onGrantStorage, onRunShellTest,
             )
@@ -106,12 +109,20 @@ fun SystemStatusHeader(
     }
 }
 
+/** What the compact pill says when something is not ready. */
+private data class HeaderProblem(
+    val title: String,
+    val hint: String,
+    val action: String,
+    val onAction: () -> Unit,
+    val tone: Color,
+)
+
 @Composable
 private fun FullHeader(
     shizukuState: ShizukuState,
     storageGranted: Boolean,
     shellTest: ShellTestState,
-    allOk: Boolean,
     onCollapse: () -> Unit,
     onOpenShizuku: () -> Unit,
     onRequestShizuku: () -> Unit,
@@ -134,10 +145,8 @@ private fun FullHeader(
                     color = TextSecondary,
                 )
             }
-            if (allOk) {
-                IconButton(onClick = onCollapse) {
-                    Icon(Icons.Outlined.ExpandLess, contentDescription = "Свернуть", tint = TextSecondary)
-                }
+            IconButton(onClick = onCollapse) {
+                Icon(Icons.Outlined.ExpandLess, contentDescription = "Свернуть", tint = TextSecondary)
             }
         }
 
@@ -180,33 +189,26 @@ private fun FullHeader(
             done = storageGranted,
         )
 
-        HorizontalDivider(Modifier.padding(vertical = 10.dp), color = CardBorder)
-
-        // --- Shell diagnostics ---
+        // --- Shell diagnostics (only makes sense once Shizuku is connected) ---
         val connected = shizukuState is ShizukuState.Connected
         val running = shellTest is ShellTestState.Running
-        OutlinedButton(
-            onClick = onRunShellTest,
-            enabled = connected && !running,
-            modifier = Modifier.fillMaxWidth(),
-            border = BorderStroke(1.dp, if (connected) NeonCyan else CardBorder),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
-        ) {
-            if (running) {
-                ExpressiveLoadingIndicator(size = 22.dp, color = NeonCyan)
-            } else {
-                Icon(Icons.Outlined.Terminal, contentDescription = null, modifier = Modifier.size(18.dp))
+        if (connected) {
+            HorizontalDivider(Modifier.padding(vertical = 10.dp), color = CardBorder)
+            OutlinedButton(
+                onClick = onRunShellTest,
+                enabled = !running,
+                modifier = Modifier.fillMaxWidth(),
+                border = BorderStroke(1.dp, NeonCyan),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
+            ) {
+                if (running) {
+                    ExpressiveLoadingIndicator(size = 22.dp, color = NeonCyan)
+                } else {
+                    Icon(Icons.Outlined.Terminal, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("Тест Shell")
             }
-            Spacer(Modifier.width(8.dp))
-            Text("Тест Shell")
-        }
-        if (!connected) {
-            Text(
-                text = "Доступно после подключения Shizuku",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                modifier = Modifier.padding(top = 4.dp),
-            )
         }
 
         when (shellTest) {
@@ -219,37 +221,87 @@ private fun FullHeader(
 }
 
 @Composable
-private fun CompactHeader(state: ShizukuState.Connected, onExpand: () -> Unit, modifier: Modifier) {
-    UltraCard(
-        modifier = modifier.clip(RoundedCornerShape(50)).clickable(onClick = onExpand),
-        shape = RoundedCornerShape(50),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "UltraCore",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                )
-                Text(
-                    text = DeviceInfo.shortTitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            ShapeIcon(Icons.Rounded.Check, ExpressiveShapes.Cookie, ExpressiveTones.Green, size = 22.dp)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "Shizuku · ${state.mode.label}",
-                style = MaterialTheme.typography.labelMedium,
-                color = NeonGreen,
+private fun CompactHeader(
+    state: ShizukuState,
+    storageGranted: Boolean,
+    onExpand: () -> Unit,
+    onOpenShizuku: () -> Unit,
+    onRequestShizuku: () -> Unit,
+    onReconnectShizuku: () -> Unit,
+    onGrantStorage: () -> Unit,
+) {
+    val problem: HeaderProblem? = when (state) {
+        ShizukuState.NotInstalled -> HeaderProblem(
+            "Shizuku не установлен", "Без него большинство функций недоступно", "Установить", onOpenShizuku, ExpressiveTones.Red,
+        )
+        ShizukuState.NotRunning -> HeaderProblem(
+            "Shizuku не запущен", "После перезагрузки его нужно запускать заново", "Открыть", onOpenShizuku, ExpressiveTones.Red,
+        )
+        ShizukuState.PermissionDenied -> HeaderProblem(
+            "Нет разрешения Shizuku", "Разрешите доступ для UltraCore", "Разрешить", onRequestShizuku, ExpressiveTones.Amber,
+        )
+        is ShizukuState.Error -> HeaderProblem(
+            "Ошибка Shizuku", state.message, "Подключить", onReconnectShizuku, ExpressiveTones.Red,
+        )
+        ShizukuState.Connecting -> null
+        is ShizukuState.Connected -> if (storageGranted) {
+            null
+        } else {
+            HeaderProblem(
+                "Нет доступа к файлам", "Нужен для очистки и сортировки", "Выдать", onGrantStorage, ExpressiveTones.Amber,
             )
-            Spacer(Modifier.width(4.dp))
-            Icon(Icons.Outlined.ExpandMore, contentDescription = "Подробнее", tint = TextSecondary)
         }
+    }
+    UltraCard(shape = RoundedCornerShape(50), onClick = onExpand) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
+            when {
+                problem != null -> {
+                    ShapeIcon(Icons.Rounded.PriorityHigh, ExpressiveShapes.Cookie, problem.tone, size = 32.dp)
+                    Spacer(Modifier.width(12.dp))
+                    HeaderTexts(problem.title, problem.hint, Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    SmallActionButton(text = problem.action, onClick = problem.onAction)
+                }
+                state is ShizukuState.Connected -> {
+                    HeaderTexts("UltraCore", DeviceInfo.shortTitle, Modifier.weight(1f))
+                    ShapeIcon(Icons.Rounded.Check, ExpressiveShapes.Cookie, ExpressiveTones.Green, size = 22.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Shizuku · ${state.mode.label}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = NeonGreen,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Outlined.ExpandMore, contentDescription = "Подробнее", tint = TextSecondary)
+                }
+                else -> {
+                    ExpressiveLoadingIndicator(size = 32.dp, color = NeonAmber)
+                    Spacer(Modifier.width(12.dp))
+                    HeaderTexts("Подключение к Shizuku…", DeviceInfo.shortTitle, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderTexts(title: String, subtitle: String, modifier: Modifier) {
+    Column(modifier) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

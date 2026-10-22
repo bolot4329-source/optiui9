@@ -3,6 +3,7 @@ package com.ultracore.app.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,19 +26,30 @@ fun UltraCard(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(CardRadius),
     outlined: Boolean = true,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = shape,
-        color = androidx.compose.ui.graphics.Color.Black,
-        border = if (outlined) BorderStroke(1.dp, CardBorder) else null,
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            content = content,
-        )
+    val border = if (outlined) BorderStroke(1.dp, CardBorder) else null
+    val black = androidx.compose.ui.graphics.Color.Black
+    if (onClick != null) {
+        // Clickable Surface clips the ripple to the card shape.
+        Surface(onClick = onClick, modifier = modifier.fillMaxWidth(), shape = shape, color = black, border = border) {
+            Column(modifier = Modifier.padding(16.dp), content = content)
+        }
+    } else {
+        Surface(modifier = modifier.fillMaxWidth(), shape = shape, color = black, border = border) {
+            Column(modifier = Modifier.padding(16.dp), content = content)
+        }
     }
+}
+
+/**
+ * Wrapper for single items inside a LazyColumn whose rows are spaced 2dp for connected groups:
+ * adds the usual breathing room around headers, banners and chip rows.
+ */
+@Composable
+fun Spaced(content: @Composable () -> Unit) {
+    Box(Modifier.padding(vertical = 4.dp)) { content() }
 }
 
 /** Shape of item [index] in a connected group: 28dp outside corners, 8dp where items touch. */
@@ -70,3 +82,9 @@ fun <T> UltraCardGroup(
 /** Border for AlertDialogs: they are black now, so the outline shows where the dialog is. */
 val UltraDialogModifier: Modifier
     get() = Modifier.border(1.dp, CardBorder, RoundedCornerShape(CardRadius))
+
+/** LazyColumn item with [Spaced] breathing room (lists spaced 2dp for connected groups). */
+fun androidx.compose.foundation.lazy.LazyListScope.spacedItem(
+    key: Any? = null,
+    content: @Composable () -> Unit,
+) = item(key) { Spaced(content) }

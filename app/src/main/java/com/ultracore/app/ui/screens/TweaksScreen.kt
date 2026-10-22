@@ -4,6 +4,8 @@ import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -109,14 +111,14 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
         }
 
         item {
-            val current = state.currentRefresh?.let { "$it Гц" } ?: "—"
-            val lock = state.refreshLock?.let { "закреплена на $it Гц" } ?: "управляет система"
+            val now = (state.currentRefresh?.let { "Сейчас $it Гц, " } ?: "") +
+                (state.refreshLock?.let { "закреплена на $it Гц" } ?: "частотой управляет система")
             TweakCard(
                 title = "Частота экрана",
                 icon = Icons.Rounded.Speed,
                 shape = ExpressiveShapes.Sunny,
                 tone = ExpressiveTones.Sky,
-                description = "Сейчас $current, $lock. Постоянная высокая частота расходует больше заряда.",
+                description = "${now.replaceFirstChar { it.uppercase() }}. Постоянная высокая частота расходует больше заряда.",
                 id = TweakId.REFRESH,
                 state = state,
                 onReset = viewModel::resetRefreshRate,
@@ -179,6 +181,7 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DnsCard(state: TweaksState, viewModel: TweaksViewModel) {
     var host by rememberSaveable(state.dnsHost) { mutableStateOf(state.dnsHost.orEmpty()) }
@@ -219,9 +222,10 @@ private fun DnsCard(state: TweaksState, viewModel: TweaksViewModel) {
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = NeonCyan, unfocusedBorderColor = CardBorder, cursorColor = NeonCyan),
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TweaksRepository.DNS_PRESETS.forEach { (preset, label) ->
                 MorphChip(text = label.substringBefore(" —"), selected = host == preset, onClick = { host = preset })
@@ -275,6 +279,7 @@ private fun TweakCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun <T> Options(
     options: List<T>,
@@ -283,9 +288,11 @@ private fun <T> Options(
     enabled: Boolean,
     onSelect: (T) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+    // Chips wrap onto the next line instead of hiding off-screen.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         options.forEach { option ->
             MorphChip(

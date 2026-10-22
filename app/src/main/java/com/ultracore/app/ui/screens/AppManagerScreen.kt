@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,6 +83,8 @@ import com.ultracore.app.ui.components.AppIcon
 import com.ultracore.app.ui.components.InfoBanner
 import com.ultracore.app.ui.components.MorphChip
 import com.ultracore.app.ui.components.UltraCard
+import com.ultracore.app.ui.components.groupShape
+import com.ultracore.app.ui.components.spacedItem
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBlack
 import com.ultracore.app.ui.theme.CardBorder
@@ -127,12 +131,13 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + if (selected.isNotEmpty()) 150.dp else 24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            // 2dp: rows of one list touch as a connected group; other items add their own gap.
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             if (!connected) {
-                item { InfoBanner("Подключите Shizuku — управление приложениями работает через него") }
+                spacedItem { InfoBanner("Подключите Shizuku — управление приложениями работает через него") }
             }
-            item {
+            spacedItem {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = query,
@@ -182,7 +187,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                     }
                 }
             }
-            item {
+            spacedItem {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -192,7 +197,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
             }
 
             when (filter) {
-                AppFilter.SANDBOX -> item {
+                AppFilter.SANDBOX -> spacedItem {
                     SandboxSettings(
                         delaySeconds = sandbox.delaySeconds,
                         pendingCount = sandbox.pending.size,
@@ -205,10 +210,10 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                         onSleepAll = viewModel::sleepAllSandbox,
                     )
                 }
-                AppFilter.REMOVED -> item {
+                AppFilter.REMOVED -> spacedItem {
                     InfoBanner("Системные приложения, удалённые для пользователя. Их можно вернуть кнопкой «Восстановить».", color = TextSecondary)
                 }
-                AppFilter.SYSTEM -> item {
+                AppFilter.SYSTEM -> spacedItem {
                     InfoBanner(
                         "Замораживайте и удаляйте системные приложения, только если знаете, за что они отвечают. " +
                             "Важные части системы защищены 🛡. Всё можно вернуть.",
@@ -218,7 +223,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
             }
 
             if (!loading && apps.isEmpty()) {
-                item {
+                spacedItem {
                     InfoBanner(
                         if (filter == AppFilter.SANDBOX) {
                             "Песочница пуста. Откройте приложение в любом списке и нажмите «В песочницу»."
@@ -230,9 +235,11 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                 }
             }
 
-            items(apps, key = { it.packageName }) { app ->
+            itemsIndexed(apps, key = { _, it -> it.packageName }) { index, app ->
                 AppRow(
                     app = app,
+                    shape = groupShape(index, apps.size),
+                    modifier = if (index == 0) Modifier.padding(top = 6.dp) else Modifier,
                     checked = app.packageName in selected,
                     inSandbox = app.packageName in sandbox.packages,
                     bgRestricted = app.packageName in changes.restricted,
@@ -390,13 +397,15 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun AppRow(
     app: ManagedApp,
+    shape: Shape,
+    modifier: Modifier,
     checked: Boolean,
     inSandbox: Boolean,
     bgRestricted: Boolean,
     onCheck: () -> Unit,
     onClick: () -> Unit,
 ) {
-    UltraCard(Modifier.clickable(onClick = onClick)) {
+    UltraCard(modifier, shape = shape, onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = checked,

@@ -1,6 +1,7 @@
 package com.ultracore.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -78,9 +79,11 @@ fun PrimaryButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = NeonCyan,
             contentColor = AmoledBlack,
-            disabledContainerColor = CardBorder,
+            // Disabled = outline on black, never a grey fill.
+            disabledContainerColor = Color.Transparent,
             disabledContentColor = TextSecondary,
         ),
+        border = if (enabled) null else BorderStroke(1.dp, CardBorder),
     ) {
         if (icon != null) {
             Icon(icon, contentDescription = null)
@@ -108,5 +111,35 @@ fun SecondaryButton(
         colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
     ) {
         Text(text)
+    }
+}
+
+/** Small pill action next to a row (e.g. «Запуск»): filled accent, outlined when disabled. */
+@Composable
+fun SmallActionButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val corner by animateDpAsState(if (pressed) 10.dp else 20.dp, expressiveSpring(), label = "smallBtnCorner")
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        interactionSource = interaction,
+        modifier = modifier.height(40.dp),
+        shape = RoundedCornerShape(corner),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = NeonCyan,
+            contentColor = AmoledBlack,
+            disabledContainerColor = Color.Transparent,
+            disabledContentColor = TextSecondary,
+        ),
+        border = if (enabled) null else BorderStroke(1.dp, CardBorder),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
     }
 }

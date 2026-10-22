@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,6 +74,8 @@ import com.ultracore.app.ui.components.AppIcon
 import com.ultracore.app.ui.components.InfoBanner
 import com.ultracore.app.ui.components.MorphChip
 import com.ultracore.app.ui.components.UltraCard
+import com.ultracore.app.ui.components.groupShape
+import com.ultracore.app.ui.components.spacedItem
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBlack
 import com.ultracore.app.ui.theme.CardBorder
@@ -110,9 +114,10 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            // 2dp: rows of one list touch as a connected group; other items add their own gap.
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            item {
+            spacedItem {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = query,
@@ -136,7 +141,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
                     }
                 }
             }
-            item {
+            spacedItem {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -147,7 +152,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
                 }
             }
             if (!rootMode) {
-                item {
+                spacedItem {
                     InfoBanner(
                         "Без Root открываются только экраны, доступные снаружи. Закрытые помечены 🔒.",
                         color = TextSecondary,
@@ -156,7 +161,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
             }
 
             progress?.let { p ->
-                item {
+                spacedItem {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
                         ExpressiveLoadingIndicator(size = 24.dp, color = NeonCyan)
                         Spacer(Modifier.width(10.dp))
@@ -170,12 +175,13 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
             }
 
             if (favorites.isNotEmpty() && query.isBlank()) {
-                item {
+                spacedItem {
                     Text("Избранное", style = MaterialTheme.typography.titleSmall, color = NeonAmber, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
                 }
-                items(favorites, key = { "fav/${it.packageName}/${it.className}" }) { fav ->
+                itemsIndexed(favorites, key = { _, it -> "fav/${it.packageName}/${it.className}" }) { index, fav ->
                     FavoriteRow(
                         fav = fav,
+                        shape = groupShape(index, favorites.size),
                         onLaunch = { viewModel.launch(fav.packageName, fav.className) },
                         onShortcut = { viewModel.pinShortcut(fav.packageName, fav.className, fav.label) },
                     )
@@ -183,12 +189,14 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
             }
 
             if (progress == null && apps.isEmpty()) {
-                item { InfoBanner("Ничего не найдено", color = TextSecondary) }
+                spacedItem { InfoBanner("Ничего не найдено", color = TextSecondary) }
             }
 
-            items(apps, key = { it.packageName }) { app ->
+            itemsIndexed(apps, key = { _, it -> it.packageName }) { index, app ->
                 AppCard(
                     app = app,
+                    shape = groupShape(index, apps.size),
+                    modifier = if (index == 0) Modifier.padding(top = 6.dp) else Modifier,
                     expanded = app.packageName in expanded || query.length >= 3,
                     rootMode = rootMode,
                     favoriteKeys = favoriteKeys,
@@ -211,12 +219,14 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
 @Composable
 private fun AppCard(
     app: AppEntry,
+    shape: Shape,
+    modifier: Modifier,
     expanded: Boolean,
     rootMode: Boolean,
     favoriteKeys: Set<String>,
     viewModel: LauncherViewModel,
 ) {
-    UltraCard {
+    UltraCard(modifier, shape = shape) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { viewModel.toggleExpanded(app.packageName) },
             verticalAlignment = Alignment.CenterVertically,
@@ -324,8 +334,8 @@ private fun ActivityRow(
 }
 
 @Composable
-private fun FavoriteRow(fav: FavoriteActivity, onLaunch: () -> Unit, onShortcut: () -> Unit) {
-    UltraCard(Modifier.clickable(onClick = onLaunch)) {
+private fun FavoriteRow(fav: FavoriteActivity, shape: Shape, onLaunch: () -> Unit, onShortcut: () -> Unit) {
+    UltraCard(shape = shape, onClick = onLaunch) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppIcon(fav.packageName)
             Spacer(Modifier.width(12.dp))

@@ -49,9 +49,12 @@ import com.ultracore.app.shizuku.ShizukuState
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PriorityHigh
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Restore
 import com.ultracore.app.ui.components.ExpressiveShapes
 import com.ultracore.app.ui.components.ExpressiveTones
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.SecondaryButton
 import com.ultracore.app.ui.components.ShapeIcon
 import com.ultracore.app.ui.components.ExpressiveSwitch
 import com.ultracore.app.ui.components.groupShape
@@ -146,6 +149,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             val context = LocalContext.current
             UltraCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    ShapeIcon(Icons.Rounded.Palette, ExpressiveShapes.Clover, ExpressiveTones.Pink, size = 44.dp)
+                    Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Цвета из обоев", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Text(
@@ -168,7 +173,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
         item {
             UltraCard {
-                Text("Вернуть телефон как было", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ShapeIcon(Icons.Rounded.Restore, ExpressiveShapes.Burst, ExpressiveTones.Amber, size = 44.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Text("Вернуть телефон как было", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+                Spacer(Modifier.size(8.dp))
                 Text(
                     "Отменяет всё, что изменил UltraCore: заморозку, паузу, удаление системных приложений, " +
                         "ограничения фона, песочницу и все твики. Нажмите перед удалением UltraCore — " +
@@ -184,9 +194,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         Text(resetBusy.orEmpty(), color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                     }
                 } else {
-                    TextButton(onClick = { confirmReset = true }, enabled = connected) {
-                        Text("Вернуть всё", color = if (connected) NeonAmber else TextSecondary)
-                    }
+                    SecondaryButton(
+                        text = if (connected) "Вернуть всё" else "Вернуть всё — нужен Shizuku",
+                        onClick = { confirmReset = true },
+                        color = NeonAmber,
+                        enabled = connected,
+                    )
                 }
             }
         }
