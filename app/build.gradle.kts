@@ -15,8 +15,8 @@ android {
         applicationId = "com.ultracore.app"
         minSdk = 31
         targetSdk = 35
-        versionCode = 16
-        versionName = "2.2.0-beta3"
+        versionCode = 17
+        versionName = "2.2.0-beta4"
     }
 
     signingConfigs {

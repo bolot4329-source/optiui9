@@ -53,6 +53,7 @@ import com.ultracore.app.ui.components.ExpressiveShapes
 import com.ultracore.app.ui.components.ExpressiveTones
 import com.ultracore.app.ui.components.InfoBanner
 import com.ultracore.app.ui.components.ShapeIcon
+import com.ultracore.app.ui.components.ExpressiveSwitch
 import com.ultracore.app.ui.components.groupShape
 import androidx.compose.ui.graphics.Shape
 import com.ultracore.app.ui.components.UltraCard
@@ -157,7 +158,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             color = TextSecondary,
                         )
                     }
-                    Switch(
+                    ExpressiveSwitch(
                         checked = ThemePrefs.dynamicColors,
                         onCheckedChange = { ThemePrefs.setDynamic(context, it) },
                     )
@@ -224,7 +225,7 @@ private fun DeviceCard(shizuku: ShizukuState) {
             Column {
                 Text(
                     "${DeviceInfo.manufacturer} ${DeviceInfo.model}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                 )

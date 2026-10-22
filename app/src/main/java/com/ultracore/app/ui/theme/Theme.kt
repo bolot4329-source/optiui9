@@ -33,12 +33,17 @@ private val ExpressiveShapes = Shapes(
 /** Bolder titles and headlines, as in Material 3 Expressive «emphasized» styles. */
 private fun expressiveTypography(): Typography {
     val base = Typography()
+    // Hero numbers: heavy and tight; tabular figures so values don't jump while updating.
     return base.copy(
-        headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
-        headlineSmall = base.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
-        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        labelLarge = base.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+        displayLarge = base.displayLarge.copy(fontSize = 56.sp, lineHeight = 60.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.5).sp, fontFeatureSettings = "tnum"),
+        displayMedium = base.displayMedium.copy(fontSize = 44.sp, lineHeight = 48.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, fontFeatureSettings = "tnum"),
+        displaySmall = base.displaySmall.copy(fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp, fontFeatureSettings = "tnum"),
+        headlineLarge = base.headlineLarge.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
+        headlineMedium = base.headlineMedium.copy(fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
+        headlineSmall = base.headlineSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp),
+        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.1.sp),
+        labelLarge = base.labelLarge.copy(fontWeight = FontWeight.Bold),
     )
 }
 

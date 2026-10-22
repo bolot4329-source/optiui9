@@ -41,7 +41,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ultracore.app.battery.BatteryValue
 import com.ultracore.app.battery.BatteryViewModel
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.BatteryFull
+import androidx.compose.ui.graphics.StrokeCap
+import com.ultracore.app.ui.components.ExpressiveShapes
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.ShapeIcon
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.CardBorder
 import com.ultracore.app.ui.theme.NeonAmber
@@ -65,11 +71,18 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
         item {
             UltraCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val charging = passport.statusText.startsWith("Заряжается")
+                    ShapeIcon(
+                        if (charging) Icons.Rounded.BatteryChargingFull else Icons.Rounded.BatteryFull,
+                        if (charging) ExpressiveShapes.Sunny else ExpressiveShapes.Arch,
+                        levelColor(passport.level),
+                        size = 64.dp,
+                    )
+                    Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
                             passport.level?.let { "$it %" } ?: "—",
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.displayLarge,
                             color = levelColor(passport.level),
                         )
                         if (passport.statusText.isNotBlank()) {
@@ -88,9 +101,10 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
                     Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(
                         progress = { level / 100f },
-                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                        modifier = Modifier.fillMaxWidth().height(10.dp),
                         color = levelColor(level),
                         trackColor = CardBorder,
+                        strokeCap = StrokeCap.Round,
                     )
                 }
             }

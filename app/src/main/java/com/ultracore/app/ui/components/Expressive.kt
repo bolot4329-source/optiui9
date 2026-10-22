@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -126,6 +128,24 @@ fun MorphChip(
         }
         Text(text, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
     }
+}
+
+/** Switch for pure black: outlined black track when off, accent when on. */
+@Composable
+fun ExpressiveSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, enabled: Boolean = true) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        enabled = enabled,
+        colors = SwitchDefaults.colors(
+            checkedTrackColor = NeonCyan,
+            checkedBorderColor = NeonCyan,
+            checkedThumbColor = Color.Black,
+            uncheckedTrackColor = Color.Black,
+            uncheckedBorderColor = CardBorder,
+            uncheckedThumbColor = TextSecondary,
+        ),
+    )
 }
 
 /**

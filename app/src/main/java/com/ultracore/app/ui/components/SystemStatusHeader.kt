@@ -1,5 +1,11 @@
 package com.ultracore.app.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Terminal
@@ -74,12 +82,44 @@ fun SystemStatusHeader(
     // If something needs attention it is always shown in full.
     val allOk = shizukuState is ShizukuState.Connected && storageGranted
     var expanded by rememberSaveable { mutableStateOf(false) }
-    if (allOk && !expanded) {
-        CompactHeader(shizukuState as ShizukuState.Connected, onExpand = { expanded = true }, modifier = modifier)
-        return
+    val compact = allOk && !expanded
+    // Springy morph between the one-line and the full header.
+    AnimatedContent(
+        targetState = compact,
+        transitionSpec = {
+            (fadeIn(ExpressiveMotion.effects()) + scaleIn(ExpressiveMotion.spatialDefault(), initialScale = 0.96f)) togetherWith
+                fadeOut(ExpressiveMotion.effects()) using
+                SizeTransform(clip = false) { _, _ -> ExpressiveMotion.spatialDefault() }
+        },
+        label = "header",
+        modifier = modifier,
+    ) { isCompact ->
+        if (isCompact && shizukuState is ShizukuState.Connected) {
+            CompactHeader(shizukuState, onExpand = { expanded = true }, modifier = Modifier)
+        } else {
+            FullHeader(
+                shizukuState, storageGranted, shellTest, allOk,
+                onCollapse = { expanded = false },
+                onOpenShizuku, onRequestShizuku, onReconnectShizuku, onGrantStorage, onRunShellTest,
+            )
+        }
     }
+}
 
-    UltraCard(modifier = modifier) {
+@Composable
+private fun FullHeader(
+    shizukuState: ShizukuState,
+    storageGranted: Boolean,
+    shellTest: ShellTestState,
+    allOk: Boolean,
+    onCollapse: () -> Unit,
+    onOpenShizuku: () -> Unit,
+    onRequestShizuku: () -> Unit,
+    onReconnectShizuku: () -> Unit,
+    onGrantStorage: () -> Unit,
+    onRunShellTest: () -> Unit,
+) {
+    UltraCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
@@ -95,7 +135,7 @@ fun SystemStatusHeader(
                 )
             }
             if (allOk) {
-                IconButton(onClick = { expanded = false }) {
+                IconButton(onClick = onCollapse) {
                     Icon(Icons.Outlined.ExpandLess, contentDescription = "Свернуть", tint = TextSecondary)
                 }
             }
@@ -180,8 +220,11 @@ fun SystemStatusHeader(
 
 @Composable
 private fun CompactHeader(state: ShizukuState.Connected, onExpand: () -> Unit, modifier: Modifier) {
-    UltraCard(modifier = modifier.clickable(onClick = onExpand)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    UltraCard(
+        modifier = modifier.clip(RoundedCornerShape(50)).clickable(onClick = onExpand),
+        shape = RoundedCornerShape(50),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "UltraCore",
@@ -197,12 +240,8 @@ private fun CompactHeader(state: ShizukuState.Connected, onExpand: () -> Unit, m
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Box(
-                Modifier
-                    .size(8.dp)
-                    .background(NeonGreen, CircleShape)
-            )
-            Spacer(Modifier.width(6.dp))
+            ShapeIcon(Icons.Rounded.Check, ExpressiveShapes.Cookie, ExpressiveTones.Green, size = 22.dp)
+            Spacer(Modifier.width(8.dp))
             Text(
                 text = "Shizuku · ${state.mode.label}",
                 style = MaterialTheme.typography.labelMedium,

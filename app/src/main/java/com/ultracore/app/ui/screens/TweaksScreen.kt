@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.ultracore.app.ui.components.ExpressiveShapes
 import com.ultracore.app.ui.components.ExpressiveTones
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.PrimaryButton
 import com.ultracore.app.ui.components.ShapeIcon
 import com.ultracore.app.ui.components.MorphChip
 import com.ultracore.app.ui.components.UltraCard
@@ -155,18 +156,11 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
                 state = state,
                 onReset = viewModel::resetPhantomKiller,
             ) {
-                Button(
+                PrimaryButton(
+                    text = "Отключить ограничение",
                     onClick = viewModel::disablePhantomKiller,
                     enabled = state.connected && state.phantomDisabled != true && TweakId.PHANTOM !in state.busy,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonCyan,
-                        contentColor = AmoledBlack,
-                        disabledContainerColor = CardBorder,
-                        disabledContentColor = TextSecondary,
-                    ),
-                ) { Text("Отключить ограничение", fontWeight = FontWeight.Bold) }
+                )
             }
         }
 
@@ -222,7 +216,7 @@ private fun DnsCard(state: TweaksState, viewModel: TweaksViewModel) {
             enabled = state.connected,
             label = { Text("Свой сервер (DNS-over-TLS)") },
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = NeonCyan, unfocusedBorderColor = CardBorder, cursorColor = NeonCyan),
         )
         Row(
@@ -230,21 +224,15 @@ private fun DnsCard(state: TweaksState, viewModel: TweaksViewModel) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             TweaksRepository.DNS_PRESETS.forEach { (preset, label) ->
-                TextButton(onClick = { host = preset }) { Text(label, color = NeonCyan, fontSize = 12.sp) }
+                MorphChip(text = label.substringBefore(" —"), selected = host == preset, onClick = { host = preset })
             }
         }
-        Button(
+        Spacer(Modifier.height(8.dp))
+        PrimaryButton(
+            text = "Использовать этот сервер",
             onClick = { viewModel.setDnsHost(host) },
             enabled = enabled && host.isNotBlank(),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = NeonCyan,
-                contentColor = AmoledBlack,
-                disabledContainerColor = CardBorder,
-                disabledContentColor = TextSecondary,
-            ),
-        ) { Text("Использовать этот сервер", fontWeight = FontWeight.Bold) }
+        )
     }
 }
 
