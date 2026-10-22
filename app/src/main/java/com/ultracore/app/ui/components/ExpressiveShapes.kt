@@ -187,6 +187,8 @@ object ExpressiveTones {
     }
 }
 
+private const val MAX_HUE_SHIFT = 10f
+
 /** Moves this colour's hue towards [target] by [fraction] (like MaterialColors.harmonize), keeps saturation/value. */
 fun Color.harmonizeWith(target: Color, fraction: Float = 0.18f): Color {
     val src = FloatArray(3)
@@ -196,7 +198,9 @@ fun Color.harmonizeWith(target: Color, fraction: Float = 0.18f): Color {
     var diff = (dst[0] - src[0]) % 360f
     if (diff < -180f) diff += 360f
     if (diff > 180f) diff -= 360f
-    src[0] = (src[0] + diff * fraction + 360f) % 360f
+    // Like MaterialColors.harmonize: at most 10° — far hues (orange vs blue) must not turn into another colour.
+    val shift = (diff * fraction).coerceIn(-MAX_HUE_SHIFT, MAX_HUE_SHIFT)
+    src[0] = (src[0] + shift + 360f) % 360f
     return Color(android.graphics.Color.HSVToColor(src)).copy(alpha = alpha)
 }
 

@@ -15,8 +15,8 @@ android {
         applicationId = "com.ultracore.app"
         minSdk = 31
         targetSdk = 35
-        versionCode = 19
-        versionName = "2.3.0-beta1"
+        versionCode = 20
+        versionName = "2.3.0"
     }
 
     signingConfigs {
@@ -28,6 +28,17 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Real release key: comes only from GitHub Actions secrets (never committed).
+        // Without them (e.g. a fork) release falls back to the debug key so the build still works.
+        val releaseStore = System.getenv("RELEASE_KEYSTORE_PATH")
+        if (!releaseStore.isNullOrBlank() && file(releaseStore).exists()) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -36,10 +47,9 @@ android {
         }
         release {
             // R8 shrinks and optimises the code: Compose runs noticeably smoother than in debug.
-            // Signed with the same committed key for now, so it installs over the debug APK.
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
