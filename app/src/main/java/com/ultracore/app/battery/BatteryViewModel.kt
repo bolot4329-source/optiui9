@@ -23,17 +23,23 @@ class BatteryViewModel(app: Application) : AndroidViewModel(app) {
     private var publicPart: BatteryRepository.PublicPart? = null
 
     init {
-        // Public values are cheap: refresh every 5 s while this screen's ViewModel lives.
-        viewModelScope.launch {
-            while (true) {
-                publicPart = runCatching { repository.readPublic() }.getOrNull()
-                publish()
-                delay(PUBLIC_REFRESH_MS)
-            }
-        }
+        publicPart = runCatching { repository.readPublic() }.getOrNull()
+        publish()
         // Shell values: once when Shizuku connects, then on «Обновить».
         viewModelScope.launch {
             ShizukuManager.state.collect { if (it is ShizukuState.Connected && shellPart == null) refreshShell() }
+        }
+    }
+
+    /**
+     * Public values are cheap: the screen calls this inside `repeatOnLifecycle(STARTED)`, so polling
+     * stops when the screen is left or the app goes to the background.
+     */
+    suspend fun pollPublic() {
+        while (true) {
+            publicPart = runCatching { repository.readPublic() }.getOrNull()
+            publish()
+            delay(PUBLIC_REFRESH_MS)
         }
     }
 

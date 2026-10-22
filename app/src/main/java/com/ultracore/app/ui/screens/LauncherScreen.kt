@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.ExpressiveIconButton
 import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.content.Context
@@ -113,7 +114,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + 16.dp),
             // 2dp: rows of one list touch as a connected group; other items add their own gap.
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -135,9 +136,8 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
                         ),
                     )
                     if (progress == null) {
-                        IconButton(onClick = viewModel::rescan) {
-                            Icon(Icons.Outlined.Refresh, contentDescription = "Обновить список", tint = NeonCyan)
-                        }
+                        Spacer(Modifier.width(8.dp))
+                        ExpressiveIconButton(Icons.Outlined.Refresh, "Обновить список", onClick = viewModel::rescan)
                     }
                 }
             }

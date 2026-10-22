@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.RunStopButton
 import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -183,13 +184,6 @@ private fun ConsoleScreen(viewModel: TerminalViewModel) {
                 Icon(Icons.Outlined.DeleteSweep, contentDescription = "Очистить", tint = iconTint(lines.isNotEmpty() && !running))
             }
             Spacer(Modifier.weight(1f))
-            if (running) {
-                TextButton(onClick = viewModel::stop) {
-                    Icon(Icons.Outlined.Stop, contentDescription = null, tint = NeonRed)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Стоп", color = NeonRed)
-                }
-            }
         }
 
         if (suggestions.isNotEmpty()) {
@@ -235,13 +229,14 @@ private fun ConsoleScreen(viewModel: TerminalViewModel) {
                     cursorColor = NeonCyan,
                 ),
             )
-            IconButton(onClick = viewModel::submit, enabled = connected && !running && input.isNotBlank()) {
-                Icon(
-                    Icons.AutoMirrored.Outlined.Send,
-                    contentDescription = "Выполнить",
-                    tint = iconTint(connected && !running && input.isNotBlank(), NeonCyan),
-                )
-            }
+            Spacer(Modifier.width(8.dp))
+            // One button: «run» while idle, morphs into «stop» while the command works.
+            RunStopButton(
+                running = running,
+                canRun = connected && input.isNotBlank(),
+                onRun = viewModel::submit,
+                onStop = viewModel::stop,
+            )
         }
     }
 }
@@ -266,7 +261,7 @@ private fun CommandBookScreen(viewModel: TerminalViewModel, openConsole: () -> U
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         if (grouped.isEmpty()) {
@@ -394,7 +389,7 @@ private fun MacrosScreen(viewModel: TerminalViewModel, openConsole: () -> Unit) 
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {

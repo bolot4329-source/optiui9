@@ -30,6 +30,9 @@ private val ExpressiveShapes = Shapes(
     extraLarge = RoundedCornerShape(CardRadius),
 )
 
+/** Built once: the theme recomposes on every palette change. */
+private val ExpressiveTypography: Typography = expressiveTypography()
+
 /** Bolder titles and headlines, as in Material 3 Expressive «emphasized» styles. */
 private fun expressiveTypography(): Typography {
     val base = Typography()
@@ -85,7 +88,8 @@ private fun ColorScheme.toUltraColors() = UltraColors(
     background = Color.Black,
     // No grey underlays: every block lies directly on the AMOLED black.
     card = Color.Black,
-    border = outlineVariant.copy(alpha = 0.7f),
+    // Strong enough to see on every wallpaper palette (0.7 got lost on some).
+    border = outlineVariant.copy(alpha = 0.85f),
     bar = Color(0xFF101012),
     accent = primary,
     accentContainer = primaryContainer,
@@ -136,7 +140,7 @@ fun UltraCoreTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = scheme,
         shapes = ExpressiveShapes,
-        typography = expressiveTypography(),
+        typography = ExpressiveTypography,
         content = content,
     )
 }

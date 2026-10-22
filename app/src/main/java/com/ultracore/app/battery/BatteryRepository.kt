@@ -49,7 +49,7 @@ class BatteryRepository(context: Context) {
             ).joinToString(" · ")
 
             val temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
-            if (temp != Int.MIN_VALUE) add("Температура", String.format(Locale.US, "%.1f °C", temp / 10.0))
+            if (temp != Int.MIN_VALUE) add(TITLE_TEMPERATURE, String.format(Locale.US, "%.1f °C", temp / 10.0))
 
             val voltage = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)
             if (voltage > 0) add("Напряжение", "$voltage мВ")
@@ -58,7 +58,8 @@ class BatteryRepository(context: Context) {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 val cycles = intent.getIntExtra(BatteryManager.EXTRA_CYCLE_COUNT, -1)
-                if (cycles >= 0) add(TITLE_CYCLES, cycles.toString())
+                // AOSP fills 0 when the health HAL does not report cycles: 0 means «unknown», not «new».
+                if (cycles > 0) add(TITLE_CYCLES, cycles.toString())
             }
 
             intent.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY)
@@ -79,9 +80,10 @@ class BatteryRepository(context: Context) {
 
         val current = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: Int.MIN_VALUE
         if (current != Int.MIN_VALUE && current != 0) {
-            // Most phones report µA, some report mA.
-            val ma = if (abs(current) >= 10_000) current / 1000 else current
-            add("Ток", "$ma мА")
+            val average = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: Int.MIN_VALUE
+            val discharging = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) == BatteryManager.BATTERY_STATUS_DISCHARGING
+            val ma = if (isMicroAmps(current, average, discharging)) current / 1000 else current
+            add(TITLE_CURRENT, "$ma мА")
         }
 
         return PublicPart(level, statusText, values)
@@ -98,13 +100,15 @@ class BatteryRepository(context: Context) {
 
         val dump = ShizukuManager.execResult("dumpsys battery", 15)
         if (dump.isSuccess) {
-            for ((key, value) in parseKeyValues(dump.stdout)) {
-                val title = recognize(key, value)
-                if (title != null) {
-                    val shown = if (title == TITLE_HEALTH && '%' !in value) "$value %" else value
-                    values.add(BatteryValue(title, shown, BatterySource.DUMPSYS))
+            val seen = HashSet<String>()
+            for ((key, rawValue) in parseKeyValues(dump.stdout)) {
+                if (!seen.add(key)) continue
+                val value = rawValue.removeSurrounding("[", "]").trim()
+                val recognized = recognize(key, value)
+                if (recognized != null) {
+                    values.add(recognized)
                 } else {
-                    extras.add(key to value)
+                    extras.add(key to rawValue)
                 }
             }
         } else {
@@ -113,24 +117,31 @@ class BatteryRepository(context: Context) {
 
         val sys = ShizukuManager.execResult(SYSFS_COMMAND, 10)
         if (sys.isSuccess) {
-            val map = parseKeyValues(sys.stdout, separator = '=').toMap()
-            map["cycle_count"]?.toIntOrNull()?.takeIf { it >= 0 }?.let {
-                values.add(BatteryValue(TITLE_CYCLES, it.toString(), BatterySource.SYSFS))
-            }
+            val map = parseKeyValues(sys.stdout, separator = '=').distinctBy { it.first }.toMap()
+            val cycles = map["cycle_count"]?.toIntOrNull()?.takeIf { it > 0 }
+                ?: map["battery_cycle"]?.toIntOrNull()?.takeIf { it > 0 }
+            cycles?.let { values.add(BatteryValue(TITLE_CYCLES, it.toString(), BatterySource.SYSFS)) }
             val full = map["charge_full"]?.toLongOrNull()?.takeIf { it > 0 }
             val design = map["charge_full_design"]?.toLongOrNull()?.takeIf { it > 0 }
             if (full != null) values.add(BatteryValue("Полная ёмкость", "${full / 1000} мАч", BatterySource.SYSFS))
             if (design != null) values.add(BatteryValue("Паспортная ёмкость", "${design / 1000} мАч", BatterySource.SYSFS))
-            if (full != null && design != null) {
+            if (full != null && design != null && values.none { it.title == TITLE_HEALTH }) {
                 val health = (full * 100.0 / design).roundToInt()
                 values.add(BatteryValue(TITLE_HEALTH, "$health %", BatterySource.CALCULATED))
             }
         }
 
+        // The most direct value of each kind first: an explicit «state of health» beats a capacity ratio,
+        // a real cycle counter beats one estimated from accumulated usage.
+        values.sortBy { it.priority }
         return ShellPart(values, extras, note)
     }
 
-    /** "key: value" lines → pairs. Section headers ("Current Battery Service state:") are skipped. */
+    /**
+     * "key: value" lines → pairs. Section headers ("Current Battery Service state:") are skipped, and so are
+     * event log lines some firmware appends ("10-20 22:47:01.477 Sending …", "[Tag]…"): a key must start
+     * with a letter and look like a name, not like a sentence.
+     */
     private fun parseKeyValues(text: String, separator: Char = ':'): List<Pair<String, String>> =
         text.lineSequence()
             .mapNotNull { line ->
@@ -138,7 +149,11 @@ class BatteryRepository(context: Context) {
                 if (i <= 0) return@mapNotNull null
                 val key = line.substring(0, i).trim()
                 val value = line.substring(i + 1).trim()
-                if (key.isEmpty() || value.isEmpty()) null else key to value
+                when {
+                    key.isEmpty() || value.isEmpty() -> null
+                    !KEY_REGEX.matches(key) -> null
+                    else -> key to value
+                }
             }
             .toList()
 
@@ -146,15 +161,21 @@ class BatteryRepository(context: Context) {
      * Generic recognition by the meaning of the key, not by brand.
      * Keys already covered by the public API (level, voltage, temperature…) go to extras.
      */
-    private fun recognize(key: String, value: String): String? {
+    private fun recognize(key: String, value: String): BatteryValue? {
         val k = key.lowercase().replace("_", " ")
-        val number = value.substringBefore(' ').toDoubleOrNull()
+        val number = value.substringBefore(' ').toDoubleOrNull() ?: return null
+        fun v(title: String, shown: String, priority: Int, source: BatterySource = BatterySource.DUMPSYS) =
+            BatteryValue(title, shown, source, priority)
         return when {
-            "cycle" in k && number != null -> TITLE_CYCLES
-            ("asoc" in k || "soh" in k || "state of health" in k || "health percent" in k) &&
-                number != null && number in 1.0..100.0 -> TITLE_HEALTH
-            "design" in k && ("capacity" in k || "charge" in k) && number != null -> "Паспортная ёмкость"
-            ("full capacity" in k || "charge full" in k || "fullcapacity" in k) && number != null -> "Полная ёмкость"
+            "cycle" in k && number > 0 -> v(TITLE_CYCLES, number.toInt().toString(), 0)
+            // Accumulated discharge in percent of a full charge (e.g. «saved battery usage»): 100 % = 1 cycle.
+            ("battery usage" in k || "batteryusage" in k || "discharge level" in k) && number >= 100 ->
+                v(TITLE_CYCLES, "≈ ${(number / 100).roundToInt()}", 1, BatterySource.CALCULATED)
+            ("soh" in k || "state of health" in k || "health percent" in k) && number in 1.0..100.0 ->
+                v(TITLE_HEALTH, "${number.roundToInt()} %", 0)
+            "asoc" in k && number in 1.0..100.0 -> v(TITLE_HEALTH, "${number.roundToInt()} %", 1)
+            "design" in k && ("capacity" in k || "charge" in k) && number > 0 -> v("Паспортная ёмкость", value, 0)
+            ("full capacity" in k || "charge full" in k || "fullcapacity" in k) && number > 0 -> v("Полная ёмкость", value, 0)
             else -> null
         }
     }
@@ -188,11 +209,36 @@ class BatteryRepository(context: Context) {
     companion object {
         const val TITLE_CYCLES = "Циклы зарядки"
         const val TITLE_HEALTH = "Здоровье батареи"
+        const val TITLE_CURRENT = "Ток"
+        const val TITLE_TEMPERATURE = "Температура"
+
+        private val KEY_REGEX = Regex("^[A-Za-z][A-Za-z0-9 _()./-]{0,59}$")
+
+        /** Learned once per process: does this phone report current in µA (Android standard) or mA? */
+        @Volatile
+        private var microAmps: Boolean? = null
+
+        /**
+         * BATTERY_PROPERTY_CURRENT_NOW must be in µA, but some firmware reports mA.
+         * - |value| ≥ 10 000 can only be µA (nobody draws or charges 10 A);
+         * - discharging with the app on screen draws at least tens of mA, so |value| < 5 000 then means mA.
+         * Until one of these is seen, the old rule is used.
+         */
+        internal fun isMicroAmps(now: Int, average: Int, discharging: Boolean): Boolean {
+            val avg = if (average == Int.MIN_VALUE) 0 else abs(average)
+            when {
+                abs(now) >= 10_000 || avg >= 10_000 -> microAmps = true
+                discharging && abs(now) < 5_000 && avg < 5_000 && microAmps == null -> microAmps = false
+            }
+            return microAmps ?: (abs(now) >= 10_000)
+        }
         private const val PLUGGED_DOCK = 8 // BatteryManager.BATTERY_PLUGGED_DOCK (API 33)
 
+        /** Every power supply (battery, bms, fg…): the first readable value of each file wins. */
         private const val SYSFS_COMMAND =
-            "cd /sys/class/power_supply/battery 2>/dev/null && " +
-                "for f in cycle_count charge_full charge_full_design; do " +
-                "[ -r \$f ] && echo \"\$f=\$(cat \$f 2>/dev/null)\"; done; true"
+            "for d in /sys/class/power_supply/*; do " +
+                "for f in cycle_count battery_cycle charge_full charge_full_design; do " +
+                "[ -r \"\$d/\$f\" ] && echo \"\$f=\$(cat \"\$d/\$f\" 2>/dev/null)\"; " +
+                "done; done; true"
     }
 }

@@ -40,6 +40,18 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ultracore.app.battery.BatteryValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.ultracore.app.battery.BatteryRepository
+import com.ultracore.app.battery.BatterySource
+import com.ultracore.app.ui.components.CapsuleProgress
+import com.ultracore.app.ui.components.ExpressiveIconButton
+import com.ultracore.app.ui.components.Metric
+import com.ultracore.app.ui.components.MetricGrid
+import com.ultracore.app.ui.components.SourceBadge
 import com.ultracore.app.battery.BatteryViewModel
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.BatteryChargingFull
@@ -57,18 +69,48 @@ import com.ultracore.app.ui.theme.NeonRed
 import com.ultracore.app.ui.theme.TextPrimary
 import com.ultracore.app.ui.theme.TextSecondary
 
+/** Values shown as big tiles at the top (in this order); the passport list shows the rest. */
+private val HERO_TITLES = listOf(
+    BatteryRepository.TITLE_TEMPERATURE to "Температура",
+    BatteryRepository.TITLE_CURRENT to "Ток",
+    BatteryRepository.TITLE_HEALTH to "Здоровье",
+    BatteryRepository.TITLE_CYCLES to "Циклы",
+)
+private val HERO_FALLBACKS = listOf(
+    "Оценка полной ёмкости" to "Ёмкость",
+    "Полная ёмкость" to "Ёмкость",
+    "Напряжение" to "Напряжение",
+)
+
 /** «Главная → Батарея»: battery passport. */
 @Composable
 fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
     val passport by viewModel.passport.collectAsStateWithLifecycle()
     var showExtras by rememberSaveable { mutableStateOf(false) }
 
+    // Live values only while the screen is visible.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.pollPublic() }
+    }
+
+    val byTitle = remember(passport.values) { passport.values.associateBy { it.title } }
+    val hero = remember(byTitle) {
+        val chosen = HERO_TITLES.filter { it.first in byTitle }.toMutableList()
+        HERO_FALLBACKS.forEach { f ->
+            if (chosen.size < 4 && f.first in byTitle && chosen.none { it.second == f.second }) chosen += f
+        }
+        chosen.take(4)
+    }
+    val heroTitles = remember(hero) { hero.map { it.first }.toSet() }
+    val rest = remember(passport.values, heroTitles) { passport.values.filter { it.title !in heroTitles } }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
+        item(key = "hero", contentType = "hero") {
             UltraCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val charging = passport.statusText.startsWith("Заряжается")
@@ -86,59 +128,62 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
                             color = levelColor(passport.level),
                         )
                         if (passport.statusText.isNotBlank()) {
-                            Text(passport.statusText, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text(passport.statusText, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         }
                     }
                     if (passport.loadingShell) {
-                        ExpressiveLoadingIndicator(size = 28.dp, color = NeonCyan)
+                        ExpressiveLoadingIndicator(size = 32.dp, color = NeonCyan)
                     } else {
-                        IconButton(onClick = viewModel::refresh) {
-                            Icon(Icons.Outlined.Refresh, contentDescription = "Обновить", tint = NeonCyan)
-                        }
+                        ExpressiveIconButton(Icons.Outlined.Refresh, "Обновить", onClick = viewModel::refresh)
                     }
                 }
                 passport.level?.let { level ->
-                    Spacer(Modifier.height(10.dp))
-                    LinearProgressIndicator(
-                        progress = { level / 100f },
-                        modifier = Modifier.fillMaxWidth().height(10.dp),
-                        color = levelColor(level),
-                        trackColor = CardBorder,
-                        strokeCap = StrokeCap.Round,
+                    Spacer(Modifier.height(14.dp))
+                    CapsuleProgress(progress = level / 100f, color = levelColor(level))
+                }
+            }
+        }
+
+        if (hero.isNotEmpty()) {
+            item(key = "metrics", contentType = "metrics") {
+                MetricGrid(
+                    hero.mapNotNull { (title, label) ->
+                        byTitle[title]?.let { v -> Metric(label, v.value, v.source.badge()) }
+                    },
+                )
+            }
+        }
+
+        if (rest.isNotEmpty()) {
+            item(key = "passport", contentType = "passport") {
+                UltraCard {
+                    Text(
+                        "Паспорт батареи",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
                     )
+                    Text(
+                        "Значения без пометки — из стандартного Android. dumpsys и sysfs — данные прошивки, расчёт — оценка.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    rest.forEachIndexed { index, value ->
+                        if (index > 0) HorizontalDivider(color = CardBorder)
+                        ValueRow(value)
+                    }
                 }
             }
+        } else if (passport.values.isEmpty()) {
+            item(key = "empty") { InfoBanner("Нет данных о батарее", color = TextSecondary) }
         }
 
-        item {
-            UltraCard {
-                Text(
-                    "Паспорт батареи",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                )
-                Text(
-                    "Справа указан источник: Android — стандарт системы, dumpsys и sysfs — данные прошивки, расчёт — оценка",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                )
-                Spacer(Modifier.height(8.dp))
-                if (passport.values.isEmpty()) {
-                    Text("Нет данных", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                }
-                passport.values.forEachIndexed { index, value ->
-                    if (index > 0) HorizontalDivider(color = CardBorder)
-                    ValueRow(value)
-                }
-            }
-        }
-
-        passport.shellNote?.let { note -> item { InfoBanner(note) } }
+        passport.shellNote?.let { note -> item(key = "note") { InfoBanner(note) } }
 
         if (passport.extras.isNotEmpty()) {
-            item {
-                UltraCard(Modifier.clickable { showExtras = !showExtras }) {
+            item(key = "extrasHeader", contentType = "extrasHeader") {
+                UltraCard(onClick = { showExtras = !showExtras }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -162,7 +207,7 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
                 }
             }
             if (showExtras) {
-                items(passport.extras) { (key, value) ->
+                items(passport.extras, key = { "extra:" + it.first }, contentType = { "extra" }) { (key, value) ->
                     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
                         Text(
                             key,
@@ -171,6 +216,7 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
                             fontFamily = FontFamily.Monospace,
                             fontSize = 12.sp,
                         )
+                        Spacer(Modifier.width(12.dp))
                         Text(value, color = TextPrimary, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                     }
                 }
@@ -179,17 +225,20 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
     }
 }
 
+private fun BatterySource.badge(): String? = if (this == BatterySource.ANDROID) null else label
+
 @Composable
 private fun ValueRow(value: BatteryValue) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(value.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-        Column(horizontalAlignment = Alignment.End) {
-            Text(value.value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-            Text(value.source.label, style = MaterialTheme.typography.labelSmall, color = NeonCyan)
+        value.source.badge()?.let {
+            SourceBadge(it)
+            Spacer(Modifier.width(8.dp))
         }
+        Text(value.value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = TextPrimary)
     }
 }
 

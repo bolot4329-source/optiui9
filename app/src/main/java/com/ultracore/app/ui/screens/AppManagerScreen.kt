@@ -130,7 +130,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + if (selected.isNotEmpty()) 150.dp else 24.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + if (selected.isNotEmpty()) 150.dp else 24.dp),
             // 2dp: rows of one list touch as a connected group; other items add their own gap.
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {

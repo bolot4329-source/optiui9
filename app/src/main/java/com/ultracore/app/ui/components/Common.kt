@@ -37,6 +37,7 @@ import com.ultracore.app.ui.theme.CardBorder
 import com.ultracore.app.ui.theme.CardRadius
 import com.ultracore.app.ui.theme.NeonAmber
 import com.ultracore.app.ui.theme.NeonCyan
+import com.ultracore.app.ui.theme.NeonCyanDim
 import com.ultracore.app.ui.theme.NeonRed
 import com.ultracore.app.ui.theme.TextSecondary
 
@@ -114,7 +115,10 @@ fun SecondaryButton(
     }
 }
 
-/** Small pill action next to a row (e.g. «Запуск»): filled accent, outlined when disabled. */
+/**
+ * Small pill action next to a row (e.g. «Запуск»): tonal accent — calmer than the screen's one
+ * filled [PrimaryButton], never grey; outlined when disabled.
+ */
 @Composable
 fun SmallActionButton(
     text: String,
@@ -133,12 +137,12 @@ fun SmallActionButton(
         shape = RoundedCornerShape(corner),
         contentPadding = PaddingValues(horizontal = 16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = NeonCyan,
-            contentColor = AmoledBlack,
+            containerColor = NeonCyanDim,
+            contentColor = NeonCyan,
             disabledContainerColor = Color.Transparent,
             disabledContentColor = TextSecondary,
         ),
-        border = if (enabled) null else BorderStroke(1.dp, CardBorder),
+        border = BorderStroke(1.dp, if (enabled) NeonCyan.copy(alpha = 0.38f) else CardBorder),
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
     }

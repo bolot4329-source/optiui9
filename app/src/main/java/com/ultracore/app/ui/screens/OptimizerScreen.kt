@@ -2,6 +2,8 @@ package com.ultracore.app.ui.screens
 
 import com.ultracore.app.ui.components.PrimaryButton
 import com.ultracore.app.ui.components.SmallActionButton
+import com.ultracore.app.ui.components.CapsuleProgress
+import com.ultracore.app.ui.components.gridShape
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -127,10 +129,18 @@ private fun OptimizerTool.tone(): Color = when (this) {
 }
 
 private fun OptimizerTool.description(): String = when (this) {
-    OptimizerTool.Trim -> "sm fstrim — обслуживание памяти телефона. Полезно после удаления большого объёма файлов"
-    OptimizerTool.DexoptJob -> "cmd package bg-dexopt-job — то же, что система делает ночью на зарядке. До 10 минут"
-    OptimizerTool.ArtCompile -> "cmd package compile -m speed-profile -f для каждого приложения. Нужно редко: после крупного обновления системы"
-    OptimizerTool.TrimCaches -> "pm trim-caches — удаляет кэш всех приложений. Только при нехватке места: потом приложения заново скачают данные и первое время будут медленнее"
+    OptimizerTool.Trim -> "Обслуживание памяти телефона. Полезно после удаления большого объёма файлов"
+    OptimizerTool.DexoptJob -> "То же, что система делает ночью на зарядке. До 10 минут"
+    OptimizerTool.ArtCompile -> "Для каждого приложения. Нужно редко: после крупного обновления системы"
+    OptimizerTool.TrimCaches -> "Удаляет кэш всех приложений. Только при нехватке места: потом приложения заново скачают данные и первое время будут медленнее"
+}
+
+/** The AOSP command behind the tool, shown separately in monospace for those who want to know. */
+private fun OptimizerTool.command(): String = when (this) {
+    OptimizerTool.Trim -> "sm fstrim"
+    OptimizerTool.DexoptJob -> "cmd package bg-dexopt-job"
+    OptimizerTool.ArtCompile -> "cmd package compile -m speed-profile -f"
+    OptimizerTool.TrimCaches -> "pm trim-caches"
 }
 
 @Composable
@@ -156,10 +166,13 @@ fun OptimizerScreen(viewModel: OptimizerViewModel = viewModel()) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 24.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { TelemetryCard(telemetry, onRefresh = viewModel::refreshTelemetry) }
+        item {
+            SectionLabel("Сейчас")
+        }
+        item { TelemetryTiles(telemetry) }
 
         if (!connected) {
             item {
@@ -184,15 +197,7 @@ fun OptimizerScreen(viewModel: OptimizerViewModel = viewModel()) {
             )
         }
 
-        item {
-            Text(
-                text = "Инструменты",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary,
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp),
-            )
-        }
+        item { SectionLabel("Инструменты") }
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -212,96 +217,75 @@ fun OptimizerScreen(viewModel: OptimizerViewModel = viewModel()) {
             }
         }
 
-        item { ConsoleCard(log = log, onClear = viewModel::clearLog) }
+        // The command log appears once something has run.
+        if (log.isNotEmpty()) {
+            item { ConsoleCard(log = log, onClear = viewModel::clearLog) }
+        }
     }
 }
 
 // ------------------------------------------------------------------ telemetry
 
 @Composable
-private fun TelemetryCard(telemetry: Telemetry, onRefresh: () -> Unit) {
-    UltraCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "Телеметрия",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onRefresh) {
-                Icon(Icons.Outlined.Refresh, contentDescription = "Обновить", tint = NeonCyan)
-            }
-        }
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = NeonCyan,
+        modifier = Modifier.padding(start = 8.dp, top = 6.dp),
+    )
+}
 
-        val mem = telemetry.memory
+/** RAM and storage as two big-number tiles side by side; values refresh by themselves every few seconds. */
+@Composable
+private fun TelemetryTiles(telemetry: Telemetry) {
+    val mem = telemetry.memory
+    val storage = telemetry.storage
+    if (mem == null && storage == null) {
+        Text("Загрузка…", color = TextSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+        return
+    }
+    val tiles = buildList {
         if (mem != null) {
-            Meter(
-                label = "ОЗУ",
-                detail = "${formatBytes(mem.usedBytes)} из ${formatBytes(mem.totalBytes)} · свободно ${formatBytes(mem.availableBytes)}",
-                fraction = mem.usedFraction,
-            )
-            Spacer(Modifier.height(12.dp))
-            if (mem.swapTotalBytes > 0) {
-                Meter(
-                    label = "Swap / ZRAM",
-                    detail = "${formatBytes(mem.swapUsedBytes)} из ${formatBytes(mem.swapTotalBytes)}",
-                    fraction = mem.swapUsedFraction,
-                )
-            } else {
-                Meter(label = "Swap / ZRAM", detail = "отключён", fraction = 0f)
-            }
-            Spacer(Modifier.height(12.dp))
+            val swap = if (mem.swapTotalBytes > 0) "Swap ${formatBytes(mem.swapUsedBytes)} из ${formatBytes(mem.swapTotalBytes)}" else "Swap отключён"
+            add(Triple("ОЗУ", mem.usedFraction, "${formatBytes(mem.usedBytes)} из ${formatBytes(mem.totalBytes)}\n$swap"))
         }
-
-        val storage = telemetry.storage
         if (storage != null) {
-            Meter(
-                label = "Хранилище /data",
-                detail = "${formatBytes(storage.usedBytes)} из ${formatBytes(storage.totalBytes)} · свободно ${formatBytes(storage.freeBytes)}",
-                fraction = storage.usedFraction,
-            )
+            add(Triple("Память", storage.usedFraction, "${formatBytes(storage.usedBytes)} из ${formatBytes(storage.totalBytes)}\nсвободно ${formatBytes(storage.freeBytes)}"))
         }
-
-        if (mem == null && storage == null) {
-            Text("Загрузка…", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        tiles.forEachIndexed { index, (label, fraction, detail) ->
+            UltraCard(Modifier.weight(1f), shape = gridShape(index, tiles.size)) {
+                UsageTile(label, fraction, detail)
+            }
         }
     }
 }
 
 @Composable
-private fun Meter(label: String, detail: String, fraction: Float) {
+private fun UsageTile(label: String, fraction: Float, detail: String) {
     val color = when {
         fraction >= 0.9f -> NeonRed
         fraction >= 0.75f -> NeonAmber
         else -> NeonCyan
     }
+    Text(label, style = MaterialTheme.typography.labelLarge, color = TextSecondary)
+    Spacer(Modifier.height(4.dp))
     Row(verticalAlignment = Alignment.Bottom) {
         Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = TextPrimary,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = "${(fraction * 100).toInt()}%",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
+            "${(fraction * 100).toInt()}",
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Black,
             color = color,
         )
+        Text("%", style = MaterialTheme.typography.titleMedium, color = color, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
     }
-    Spacer(Modifier.height(6.dp))
-    LinearProgressIndicator(
-        progress = { fraction.coerceIn(0f, 1f) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(8.dp),
-        color = color,
-        trackColor = CardBorder,
-    )
-    Spacer(Modifier.height(4.dp))
-    Text(text = detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+    Spacer(Modifier.height(8.dp))
+    CapsuleProgress(progress = fraction, color = color, height = 12.dp)
+    Spacer(Modifier.height(8.dp))
+    Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 2)
 }
 
 // ------------------------------------------------------------------ boost
@@ -320,7 +304,8 @@ private fun BoostCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
         color = CardBlack,
-        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+        // The one hero block of the screen: a stronger accent outline, still no fill.
+        border = BorderStroke(1.5.dp, NeonCyan.copy(alpha = 0.6f)),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -428,6 +413,15 @@ private fun ToolCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                 )
+                Text(
+                    text = tool.command(),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = NeonCyan.copy(alpha = 0.85f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
             if (!isRunning) {
                 Spacer(Modifier.width(8.dp))
@@ -519,7 +513,7 @@ private fun ConsoleCard(log: List<ShellLogEntry>, onClear: () -> Unit) {
             Icon(Icons.Outlined.Terminal, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(10.dp))
             Text(
-                text = "Консоль выполнения (Shell Log)",
+                text = "Журнал команд",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = TextPrimary,

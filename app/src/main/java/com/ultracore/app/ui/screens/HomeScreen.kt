@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.ExpressiveIconButton
 import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
@@ -80,7 +81,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { DeviceCard(shizuku) }
@@ -116,13 +117,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     if (checking) {
                         ExpressiveLoadingIndicator(size = 28.dp, color = NeonCyan)
                     } else {
-                        IconButton(onClick = viewModel::recheck, enabled = connected) {
-                            Icon(
-                                Icons.Outlined.Refresh,
-                                contentDescription = "Проверить заново",
-                                tint = if (connected) NeonCyan else TextSecondary,
-                            )
-                        }
+                        ExpressiveIconButton(
+                            Icons.Outlined.Refresh,
+                            contentDescription = "Проверить заново",
+                            onClick = viewModel::recheck,
+                            enabled = connected,
+                        )
                     }
                 }
             }

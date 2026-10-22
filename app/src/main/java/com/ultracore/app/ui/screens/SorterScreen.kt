@@ -104,7 +104,7 @@ fun SorterScreen(viewModel: SorterViewModel = viewModel()) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 24.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = LocalBottomBarInset.current + 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (!storageGranted) {

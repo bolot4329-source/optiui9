@@ -1,5 +1,8 @@
 package com.ultracore.app.ui.components
 
+import androidx.compose.ui.graphics.toArgb
+import com.ultracore.app.ui.theme.ThemePrefs
+
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -41,21 +44,25 @@ import com.ultracore.app.ui.theme.NeonCyan
  */
 class PolygonShape(polygon: RoundedPolygon, private val rotationDegrees: Float = 0f) : Shape {
     private val normalized = polygon.normalized()
-    private var cachedSize: Size? = null
-    private var cachedPath: Path? = null
+    // One shape object is used at many sizes (22, 32, 44, 64 dp…): keep a path per size.
+    // Outlines are created on the main thread, a plain map is enough.
+    private val cache = HashMap<Size, Path>(4)
 
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val cached = cachedPath
-        if (cached != null && cachedSize == size) return Outline.Generic(cached)
-        val androidPath = normalized.toPath(android.graphics.Path())
-        val matrix = android.graphics.Matrix()
-        matrix.setScale(size.width, size.height)
-        if (rotationDegrees != 0f) matrix.postRotate(rotationDegrees, size.width / 2f, size.height / 2f)
-        androidPath.transform(matrix)
-        val path = androidPath.asComposePath()
-        cachedPath = path
-        cachedSize = size
+        val path = cache.getOrPut(size) {
+            val androidPath = normalized.toPath(android.graphics.Path())
+            val matrix = android.graphics.Matrix()
+            matrix.setScale(size.width, size.height)
+            if (rotationDegrees != 0f) matrix.postRotate(rotationDegrees, size.width / 2f, size.height / 2f)
+            androidPath.transform(matrix)
+            if (cache.size >= MAX_CACHED) cache.clear()
+            androidPath.asComposePath()
+        }
         return Outline.Generic(path)
+    }
+
+    private companion object {
+        const val MAX_CACHED = 12
     }
 }
 
@@ -133,6 +140,7 @@ fun ExpressiveLoadingIndicator(
         label = "loadingRotation",
     )
     val androidPath = remember { android.graphics.Path() }
+    val composePath = remember(androidPath) { androidPath.asComposePath() }
     val matrix = remember { android.graphics.Matrix() }
     Canvas(modifier.size(size)) {
         val index = phase.toInt().coerceIn(0, morphs.lastIndex)
@@ -143,20 +151,53 @@ fun ExpressiveLoadingIndicator(
         matrix.setScale(this.size.width, this.size.height)
         matrix.postRotate(rotation, this.size.width / 2f, this.size.height / 2f)
         androidPath.transform(matrix)
-        drawPath(androidPath.asComposePath(), color)
+        drawPath(composePath, color)
     }
 }
 
-/** Saturated tones used for shaped icons, as in the Expressive examples. */
+/**
+ * Saturated tones used for shaped icons, as in the Expressive examples. With wallpaper colours on,
+ * every tone is nudged towards the theme accent hue so the icons belong to the same palette.
+ */
 object ExpressiveTones {
     val Primary: Color get() = NeonCyan
-    val Green = Color(0xFF6DDC8B)
-    val Orange = Color(0xFFFFB77C)
-    val Pink = Color(0xFFFFA8C8)
-    val Lime = Color(0xFFD7EE6C)
-    val Sky = Color(0xFF8CCBFF)
-    val Red = Color(0xFFFF8A80)
-    val Amber = Color(0xFFFFCF6B)
+    val Green: Color get() = tone(0xFF6DDC8B)
+    val Orange: Color get() = tone(0xFFFFB77C)
+    val Pink: Color get() = tone(0xFFFFA8C8)
+    val Lime: Color get() = tone(0xFFD7EE6C)
+    val Sky: Color get() = tone(0xFF8CCBFF)
+    val Red: Color get() = tone(0xFFFF8A80)
+    val Amber: Color get() = tone(0xFFFFCF6B)
+
+    private var cachedAccent: Color = Color.Unspecified
+    private var cachedDynamic: Boolean = false
+    private val cache = HashMap<Long, Color>()
+
+    private fun tone(argb: Long): Color {
+        val base = Color(argb)
+        val dynamic = ThemePrefs.dynamicColors
+        if (!dynamic) return base
+        val accent = NeonCyan
+        if (accent != cachedAccent || dynamic != cachedDynamic) {
+            cache.clear()
+            cachedAccent = accent
+            cachedDynamic = dynamic
+        }
+        return cache.getOrPut(argb) { base.harmonizeWith(accent) }
+    }
+}
+
+/** Moves this colour's hue towards [target] by [fraction] (like MaterialColors.harmonize), keeps saturation/value. */
+fun Color.harmonizeWith(target: Color, fraction: Float = 0.18f): Color {
+    val src = FloatArray(3)
+    val dst = FloatArray(3)
+    android.graphics.Color.colorToHSV(toArgb(), src)
+    android.graphics.Color.colorToHSV(target.toArgb(), dst)
+    var diff = (dst[0] - src[0]) % 360f
+    if (diff < -180f) diff += 360f
+    if (diff > 180f) diff -= 360f
+    src[0] = (src[0] + diff * fraction + 360f) % 360f
+    return Color(android.graphics.Color.HSVToColor(src)).copy(alpha = alpha)
 }
 
 /** Icon on a filled expressive shape: saturated container, dark glyph. */

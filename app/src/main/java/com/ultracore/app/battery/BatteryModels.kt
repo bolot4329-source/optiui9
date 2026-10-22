@@ -8,7 +8,13 @@ enum class BatterySource(val label: String) {
     CALCULATED("расчёт"),
 }
 
-data class BatteryValue(val title: String, val value: String, val source: BatterySource)
+data class BatteryValue(
+    val title: String,
+    val value: String,
+    val source: BatterySource,
+    /** Lower = more direct; when two sources give the same title, the lower one is shown. */
+    val priority: Int = 0,
+)
 
 data class BatteryPassport(
     val level: Int? = null,

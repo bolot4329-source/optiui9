@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ultracore.app.ui.theme.NeonCyan
+import com.ultracore.app.ui.theme.NeonCyanDim
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import com.ultracore.app.ui.theme.TextPrimary
@@ -60,9 +61,9 @@ import com.ultracore.app.ui.theme.TextSecondary
 /** Space the floating bar takes at the bottom; scrolling screens add it to their bottom padding. */
 val LocalBottomBarInset = compositionLocalOf { 0.dp }
 
-/** Compact floating bar, proportions like the system Phone app: ~56dp high, ~78dp per item. */
+/** Compact floating bar, proportions like the system Phone app: 56dp high, 72dp per item. */
 val GlassBarHeight = 56.dp
-private val ItemWidth = 66.dp
+private val ItemWidth = 72.dp
 private val Inset = 4.dp
 
 data class GlassBarItem(
@@ -85,7 +86,9 @@ fun GlassBottomBar(
     backdrop: GraphicsLayer,
     backdropOrigin: Offset,
     modifier: Modifier = Modifier,
-    blurRadius: Dp = 28.dp,
+    blurRadius: Dp = 20.dp,
+    /** Battery saver: skip the live blur and use a plain dark glass. */
+    lowPower: Boolean = false,
 ) {
     val shape = RoundedCornerShape(GlassBarHeight / 2)
     val blurLayer = rememberGraphicsLayer()
@@ -105,15 +108,20 @@ fun GlassBottomBar(
             .clip(shape)
             .onGloballyPositioned { barOrigin = it.positionInRoot() }
             .drawBehind {
-                // 1) Live blurred copy of whatever is behind the bar.
-                if (blurLayer.renderEffect !== blurEffect) blurLayer.renderEffect = blurEffect
-                blurLayer.record(size = IntSize(size.width.toInt(), size.height.toInt())) {
-                    val shift = barOrigin - backdropOrigin
-                    translate(-shift.x, -shift.y) { drawLayer(backdrop) }
+                if (lowPower) {
+                    // Battery saver: no blur shader, just dense dark glass.
+                    drawRect(Color(0xFF0A0D12).copy(alpha = 0.94f))
+                } else {
+                    // 1) Live blurred copy of whatever is behind the bar.
+                    if (blurLayer.renderEffect !== blurEffect) blurLayer.renderEffect = blurEffect
+                    blurLayer.record(size = IntSize(size.width.toInt(), size.height.toInt())) {
+                        val shift = barOrigin - backdropOrigin
+                        translate(-shift.x, -shift.y) { drawLayer(backdrop) }
+                    }
+                    drawLayer(blurLayer)
+                    // 2) Tint so icons stay readable on any content.
+                    drawRect(Color.Black.copy(alpha = 0.58f))
                 }
-                drawLayer(blurLayer)
-                // 2) Tint so icons stay readable on any content.
-                drawRect(Color.Black.copy(alpha = 0.58f))
                 // 3) Soft light from above — the «glass» sheen.
                 drawRect(
                     Brush.verticalGradient(
@@ -147,11 +155,11 @@ fun GlassBottomBar(
                     .clip(indicatorShape)
                     .background(
                         Brush.verticalGradient(
-                            0f to NeonCyan.copy(alpha = 0.22f),
-                            1f to Color.White.copy(alpha = 0.08f),
+                            0f to NeonCyan.copy(alpha = 0.38f),
+                            1f to NeonCyanDim.copy(alpha = 0.75f),
                         ),
                     )
-                    .border(1.dp, NeonCyan.copy(alpha = 0.35f), indicatorShape),
+                    .border(1.dp, NeonCyan.copy(alpha = 0.55f), indicatorShape),
             )
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 items.forEachIndexed { index, item ->
@@ -181,6 +189,7 @@ private fun BarItem(item: GlassBarItem, selected: Boolean, onClick: () -> Unit, 
         label = "barItemScale",
     )
     val color by animateColorAsState(if (selected) TextPrimary else TextSecondary, label = "barItemColor")
+    val iconColor by animateColorAsState(if (selected) NeonCyan else TextSecondary, label = "barIconColor")
     Column(
         modifier
             .fillMaxHeight()
@@ -195,14 +204,14 @@ private fun BarItem(item: GlassBarItem, selected: Boolean, onClick: () -> Unit, 
         Icon(
             if (selected) item.selectedIcon else item.icon,
             contentDescription = item.label,
-            tint = color,
-            modifier = Modifier.size(20.dp),
+            tint = iconColor,
+            modifier = Modifier.size(21.dp),
         )
         Spacer(Modifier.height(1.dp))
         Text(
             item.label,
             color = color,
-            fontSize = 10.5.sp,
+            fontSize = 11.sp,
             lineHeight = 12.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
@@ -210,4 +219,27 @@ private fun BarItem(item: GlassBarItem, selected: Boolean, onClick: () -> Unit, 
             modifier = Modifier.padding(horizontal = 2.dp),
         )
     }
+}
+
+/** true while battery saver is on; follows the system switch live. */
+@Composable
+fun rememberPowerSaveMode(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val power = remember(context) { context.getSystemService(android.os.PowerManager::class.java) }
+    var saver by remember { mutableStateOf(power?.isPowerSaveMode == true) }
+    androidx.compose.runtime.DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, i: android.content.Intent?) {
+                saver = power?.isPowerSaveMode == true
+            }
+        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            receiver,
+            android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    return saver
 }

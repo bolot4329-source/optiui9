@@ -77,11 +77,13 @@ fun SystemStatusHeader(
     onReconnectShizuku: () -> Unit,
     onGrantStorage: () -> Unit,
     onRunShellTest: () -> Unit,
+    /** Hoisted so the screen knows not to hide an opened header while scrolling. */
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // The header is a one-line pill by default — also when something needs attention: the pill
     // then names the problem and carries the fix button. Tap it for the full details.
-    var expanded by rememberSaveable { mutableStateOf(false) }
     // Springy morph between the one-line and the full header.
     AnimatedContent(
         targetState = !expanded,
@@ -96,13 +98,13 @@ fun SystemStatusHeader(
         if (isCompact) {
             CompactHeader(
                 shizukuState, storageGranted,
-                onExpand = { expanded = true },
+                onExpand = { onExpandedChange(true) },
                 onOpenShizuku, onRequestShizuku, onReconnectShizuku, onGrantStorage,
             )
         } else {
             FullHeader(
                 shizukuState, storageGranted, shellTest,
-                onCollapse = { expanded = false },
+                onCollapse = { onExpandedChange(false) },
                 onOpenShizuku, onRequestShizuku, onReconnectShizuku, onGrantStorage, onRunShellTest,
             )
         }
@@ -252,7 +254,11 @@ private fun CompactHeader(
             )
         }
     }
-    UltraCard(shape = RoundedCornerShape(50), onClick = onExpand) {
+    UltraCard(
+        shape = RoundedCornerShape(50),
+        onClick = onExpand,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
             when {
                 problem != null -> {

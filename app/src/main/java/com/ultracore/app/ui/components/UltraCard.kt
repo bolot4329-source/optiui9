@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +28,7 @@ fun UltraCard(
     shape: Shape = RoundedCornerShape(CardRadius),
     outlined: Boolean = true,
     onClick: (() -> Unit)? = null,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val border = if (outlined) BorderStroke(1.dp, CardBorder) else null
@@ -34,11 +36,11 @@ fun UltraCard(
     if (onClick != null) {
         // Clickable Surface clips the ripple to the card shape.
         Surface(onClick = onClick, modifier = modifier.fillMaxWidth(), shape = shape, color = black, border = border) {
-            Column(modifier = Modifier.padding(16.dp), content = content)
+            Column(modifier = Modifier.padding(contentPadding), content = content)
         }
     } else {
         Surface(modifier = modifier.fillMaxWidth(), shape = shape, color = black, border = border) {
-            Column(modifier = Modifier.padding(16.dp), content = content)
+            Column(modifier = Modifier.padding(contentPadding), content = content)
         }
     }
 }

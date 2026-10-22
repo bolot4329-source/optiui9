@@ -6,6 +6,9 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -41,6 +44,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +71,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ultracore.app.shizuku.ShizukuManager
+import com.ultracore.app.shizuku.ShizukuState
+import com.ultracore.app.ui.components.ExpressiveMotion
+import com.ultracore.app.ui.components.rememberPowerSaveMode
 import com.ultracore.app.ui.components.GlassBarHeight
 import com.ultracore.app.ui.components.GlassBarItem
 import com.ultracore.app.ui.components.GlassBottomBar
@@ -114,6 +126,40 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
     val currentRoute = backStackEntry?.destination?.route
     val selectedIndex = Destination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
+    // Header: hides while scrolling down and returns on scroll up — only when everything is ready
+    // and the header is folded; a problem or an opened header always stays visible.
+    var headerExpanded by rememberSaveable { mutableStateOf(false) }
+    var headerHidden by remember { mutableStateOf(false) }
+    val allOk = shizukuState is ShizukuState.Connected && storageGranted
+    LaunchedEffect(currentRoute) { headerHidden = false }
+    val density = LocalDensity.current
+    val hideConnection = remember(density) {
+        val threshold = with(density) { 24.dp.toPx() }
+        object : NestedScrollConnection {
+            private var accumulated = 0f
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val dy = available.y
+                if ((dy < 0f && accumulated > 0f) || (dy > 0f && accumulated < 0f)) accumulated = 0f
+                accumulated += dy
+                if (accumulated < -threshold) {
+                    headerHidden = true
+                    accumulated = 0f
+                } else if (accumulated > threshold) {
+                    headerHidden = false
+                    accumulated = 0f
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                // Pulled down at the very top of a list: always show the header.
+                if (available.y > 0f) headerHidden = false
+                return Offset.Zero
+            }
+        }
+    }
+    val lowPower = rememberPowerSaveMode()
+
     CompositionLocalProvider(LocalBottomBarInset provides bottomInset) {
         Box(
             Modifier
@@ -131,24 +177,33 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
                     .background(AmoledBlack)
                     .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))),
             ) {
-                SystemStatusHeader(
-                    shizukuState = shizukuState,
-                    storageGranted = storageGranted,
-                    shellTest = shellTest,
-                    onOpenShizuku = { context.openShizukuApp() },
-                    onRequestShizuku = viewModel::requestShizukuPermission,
-                    onReconnectShizuku = viewModel::reconnectShizuku,
-                    onGrantStorage = { context.openAllFilesAccessSettings() },
-                    onRunShellTest = viewModel::runShellTest,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-                )
+                AnimatedVisibility(
+                    visible = !(headerHidden && allOk && !headerExpanded),
+                    enter = expandVertically(ExpressiveMotion.spatialDefault()) + fadeIn(ExpressiveMotion.effects()),
+                    exit = shrinkVertically(ExpressiveMotion.effects()) + fadeOut(ExpressiveMotion.effects()),
+                ) {
+                    SystemStatusHeader(
+                        shizukuState = shizukuState,
+                        storageGranted = storageGranted,
+                        shellTest = shellTest,
+                        onOpenShizuku = { context.openShizukuApp() },
+                        onRequestShizuku = viewModel::requestShizukuPermission,
+                        onReconnectShizuku = viewModel::reconnectShizuku,
+                        onGrantStorage = { context.openAllFilesAccessSettings() },
+                        onRunShellTest = viewModel::runShellTest,
+                        expanded = headerExpanded,
+                        onExpandedChange = { headerExpanded = it },
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+                    )
+                }
 
                 NavHost(
                     navController = navController,
                     startDestination = Destination.Home.route,
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .nestedScroll(hideConnection),
                     // Springy Expressive transitions between sections.
                     enterTransition = {
                         fadeIn(tween(220)) + scaleIn(spring(dampingRatio = 0.8f, stiffness = 380f), initialScale = 0.94f)
@@ -198,6 +253,7 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
                 },
                 backdrop = contentLayer,
                 backdropOrigin = contentOrigin,
+                lowPower = lowPower,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
