@@ -31,7 +31,7 @@ object UltraPalette {
 /** The original UltraCore look. */
 val NeonColors = UltraColors(
     background = Color(0xFF000000),
-    card = Color(0xFF111113),
+    card = Color(0xFF000000),
     border = Color(0xFF1E1E24),
     bar = Color(0xFF09090B),
     accent = Color(0xFF00E5FF),

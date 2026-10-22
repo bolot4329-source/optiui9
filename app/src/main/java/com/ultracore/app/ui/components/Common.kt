@@ -45,10 +45,10 @@ fun InfoBanner(text: String, color: Color = NeonAmber, modifier: Modifier = Modi
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
-        color = color.copy(alpha = 0.12f),
+        color = Color.Transparent,
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Info, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        Row(Modifier.padding(horizontal = 6.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            ShapeIcon(Icons.Outlined.Info, ExpressiveShapes.Cookie, color, size = 36.dp)
             Spacer(Modifier.width(12.dp))
             Text(text, style = MaterialTheme.typography.bodySmall, color = color)
         }

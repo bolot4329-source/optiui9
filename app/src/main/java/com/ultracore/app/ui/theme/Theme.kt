@@ -69,7 +69,8 @@ private fun ColorScheme.toAmoled(): ColorScheme = copy(
 
 private fun ColorScheme.toUltraColors() = UltraColors(
     background = Color.Black,
-    card = surfaceContainer,
+    // No grey underlays: every block lies directly on the AMOLED black.
+    card = Color.Black,
     border = outlineVariant,
     bar = surfaceContainerLow,
     accent = primary,

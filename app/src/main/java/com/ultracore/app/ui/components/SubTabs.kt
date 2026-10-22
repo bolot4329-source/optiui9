@@ -1,6 +1,7 @@
 package com.ultracore.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -29,7 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ultracore.app.ui.theme.CardBlack
+import com.ultracore.app.ui.theme.CardBorder
 import com.ultracore.app.ui.theme.NeonCyan
 import com.ultracore.app.ui.theme.NeonCyanDim
 import com.ultracore.app.ui.theme.TextSecondary
@@ -76,7 +77,7 @@ private fun SegmentedPill(
         modifier
             .height(48.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(CardBlack),
+            .border(1.dp, CardBorder, RoundedCornerShape(24.dp)),
     ) {
         val inset = 4.dp
         val itemWidth = (maxWidth - inset * 2) / titles.size

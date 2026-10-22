@@ -73,6 +73,10 @@ import com.ultracore.app.optimizer.ShellLogEntry
 import com.ultracore.app.optimizer.Telemetry
 import com.ultracore.app.optimizer.formatBytes
 import com.ultracore.app.optimizer.formatDuration
+import androidx.compose.ui.graphics.Shape
+import com.ultracore.app.ui.components.ExpressiveShapes
+import com.ultracore.app.ui.components.ExpressiveTones
+import com.ultracore.app.ui.components.ShapeIcon
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBlack
@@ -103,6 +107,20 @@ private fun OptimizerTool.icon(): ImageVector = when (this) {
     OptimizerTool.Trim -> Icons.Outlined.DeleteSweep
     OptimizerTool.ArtCompile -> Icons.Outlined.Speed
     OptimizerTool.DexoptJob -> Icons.Outlined.Tune
+}
+
+private fun OptimizerTool.shape(): Shape = when (this) {
+    OptimizerTool.Trim -> ExpressiveShapes.Cookie
+    OptimizerTool.DexoptJob -> ExpressiveShapes.Flower
+    OptimizerTool.ArtCompile -> ExpressiveShapes.Pentagon
+    OptimizerTool.TrimCaches -> ExpressiveShapes.Clover
+}
+
+private fun OptimizerTool.tone(): Color = when (this) {
+    OptimizerTool.Trim -> ExpressiveTones.Sky
+    OptimizerTool.DexoptJob -> ExpressiveTones.Green
+    OptimizerTool.ArtCompile -> ExpressiveTones.Orange
+    OptimizerTool.TrimCaches -> ExpressiveTones.Pink
 }
 
 private fun OptimizerTool.description(): String = when (this) {
@@ -294,18 +312,11 @@ private fun BoostCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
         color = CardBlack,
-        border = BorderStroke(1.5.dp, NeonCyan),
+        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(NeonCyan.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Outlined.Bolt, contentDescription = null, tint = NeonCyan)
-                }
+                ShapeIcon(Icons.Outlined.Bolt, ExpressiveShapes.Sunny, ExpressiveTones.Primary, size = 52.dp)
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(
@@ -406,8 +417,8 @@ private fun ToolCard(
 ) {
     UltraCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(tool.icon(), contentDescription = null, tint = NeonCyan, modifier = Modifier.size(26.dp))
-            Spacer(Modifier.width(12.dp))
+            ShapeIcon(tool.icon(), tool.shape(), tool.tone(), size = 44.dp)
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = tool.title,

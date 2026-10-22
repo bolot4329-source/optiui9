@@ -18,7 +18,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import com.ultracore.app.ui.theme.CardBorder
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ultracore.app.ui.theme.CardBlack
@@ -54,7 +57,7 @@ fun MorphChip(
         label = "chipCorner",
     )
     val scale by animateFloatAsState(if (pressed) 0.94f else 1f, expressiveSpring(), label = "chipScale")
-    val container by animateColorAsState(if (selected) NeonCyanDim else CardBlack, label = "chipColor")
+    val container by animateColorAsState(if (selected) NeonCyanDim else Color.Transparent, label = "chipColor")
     val content by animateColorAsState(
         when {
             !enabled -> TextSecondary
@@ -72,11 +75,11 @@ fun MorphChip(
         },
         interactionSource = interaction,
         shape = RoundedCornerShape(corner),
-        border = null,
+        border = if (selected) null else BorderStroke(1.dp, CardBorder),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = container,
             contentColor = content,
-            disabledContainerColor = CardBlack,
+            disabledContainerColor = Color.Transparent,
             disabledContentColor = TextSecondary,
         ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

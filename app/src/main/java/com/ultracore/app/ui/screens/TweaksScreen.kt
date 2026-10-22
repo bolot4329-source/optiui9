@@ -45,7 +45,19 @@ import com.ultracore.app.tweaks.TweakMessage
 import com.ultracore.app.tweaks.TweaksRepository
 import com.ultracore.app.tweaks.TweaksState
 import com.ultracore.app.tweaks.TweaksViewModel
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.ultracore.app.ui.components.ExpressiveShapes
+import com.ultracore.app.ui.components.ExpressiveTones
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.ShapeIcon
 import com.ultracore.app.ui.components.MorphChip
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.AmoledBlack
@@ -74,6 +86,9 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
         item {
             TweakCard(
                 title = "Скорость анимаций",
+                icon = Icons.Rounded.Animation,
+                shape = ExpressiveShapes.Flower,
+                tone = ExpressiveTones.Pink,
                 description = "Меньше — интерфейс отзывчивее. Сейчас: ${TweaksRepository.scaleLabel(state.animationScale)}",
                 id = TweakId.ANIMATIONS,
                 state = state,
@@ -96,6 +111,9 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
             val lock = state.refreshLock?.let { "закреплена на $it Гц" } ?: "управляет система"
             TweakCard(
                 title = "Частота экрана",
+                icon = Icons.Rounded.Speed,
+                shape = ExpressiveShapes.Sunny,
+                tone = ExpressiveTones.Sky,
                 description = "Сейчас $current, $lock. Постоянная высокая частота расходует больше заряда.",
                 id = TweakId.REFRESH,
                 state = state,
@@ -127,6 +145,9 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
             }
             TweakCard(
                 title = "Ограничение фоновых процессов",
+                icon = Icons.Rounded.Layers,
+                shape = ExpressiveShapes.Pentagon,
+                tone = ExpressiveTones.Orange,
                 description = "Android 12+ закрывает «лишние» фоновые процессы — из-за этого обрываются терминалы " +
                     "и долгие задачи. Сейчас: $status.",
                 id = TweakId.PHANTOM,
@@ -176,6 +197,9 @@ private fun DnsCard(state: TweaksState, viewModel: TweaksViewModel) {
     }
     TweakCard(
         title = "Частный DNS",
+        icon = Icons.Rounded.Shield,
+        shape = ExpressiveShapes.Cookie,
+        tone = ExpressiveTones.Green,
         description = "Защищённый DNS для всего телефона. С сервером AdGuard реклама блокируется во всех приложениях и браузерах. Сейчас: $current.",
         id = TweakId.DNS,
         state = state,
@@ -226,6 +250,9 @@ private fun DnsCard(state: TweaksState, viewModel: TweaksViewModel) {
 @Composable
 private fun TweakCard(
     title: String,
+    icon: ImageVector,
+    shape: Shape,
+    tone: Color,
     description: String,
     id: TweakId,
     state: TweaksState,
@@ -235,6 +262,8 @@ private fun TweakCard(
     val busy = id in state.busy
     UltraCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            ShapeIcon(icon, shape, tone, size = 44.dp)
+            Spacer(Modifier.width(14.dp))
             Text(
                 title,
                 modifier = Modifier.weight(1f),

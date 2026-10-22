@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.ultracore.app.ui.theme.CardBlack
 import com.ultracore.app.ui.theme.CardRadius
 
-/** Material 3 Expressive card: tonal container on the black background, large soft corners, no border. */
+/** Block on pure AMOLED black: no fill, no border — only spacing and large soft ripple corners. */
 @Composable
 fun UltraCard(
     modifier: Modifier = Modifier,
@@ -24,7 +24,7 @@ fun UltraCard(
         color = CardBlack,
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 12.dp),
             content = content,
         )
     }

@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
@@ -107,7 +106,7 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
     var contentOrigin by remember { mutableStateOf(Offset.Zero) }
 
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val barBottomMargin = 12.dp
+    val barBottomMargin = 10.dp
     // Scrolling screens leave this much room at the end so nothing hides under the bar.
     val bottomInset = GlassBarHeight + barBottomMargin + navBottom + 8.dp
 
@@ -202,9 +201,7 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(start = 20.dp, end = 20.dp, bottom = barBottomMargin)
-                    .widthIn(max = 460.dp)
-                    .fillMaxWidth(),
+                    .padding(bottom = barBottomMargin),
             )
         }
     }

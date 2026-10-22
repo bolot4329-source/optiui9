@@ -58,8 +58,10 @@ import com.ultracore.app.ui.theme.TextSecondary
 /** Space the floating bar takes at the bottom; scrolling screens add it to their bottom padding. */
 val LocalBottomBarInset = compositionLocalOf { 0.dp }
 
-/** Bar height without the outer margin. */
-val GlassBarHeight = 72.dp
+/** Compact floating bar, proportions like the system Phone app: ~56dp high, ~78dp per item. */
+val GlassBarHeight = 56.dp
+private val ItemWidth = 78.dp
+private val Inset = 4.dp
 
 data class GlassBarItem(
     val label: String,
@@ -89,6 +91,7 @@ fun GlassBottomBar(
 
     Box(
         modifier
+            .width(ItemWidth * items.size + Inset * 2)
             .height(GlassBarHeight)
             .shadow(elevation = 18.dp, shape = shape, ambientColor = Color.Black, spotColor = Color.Black)
             .clip(shape)
@@ -124,10 +127,10 @@ fun GlassBottomBar(
                 shape = shape,
             ),
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize().padding(6.dp)) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(Inset)) {
             val itemWidth = maxWidth / items.size
             val (left, right) = rememberLiquidEdges(selected)
-            val indicatorShape = RoundedCornerShape((GlassBarHeight - 12.dp) / 2)
+            val indicatorShape = RoundedCornerShape((GlassBarHeight - Inset * 2) / 2)
             // Selected «glass drop».
             Box(
                 Modifier
@@ -193,13 +196,14 @@ private fun BarItem(item: GlassBarItem, selected: Boolean, onClick: () -> Unit, 
             if (selected) item.selectedIcon else item.icon,
             contentDescription = item.label,
             tint = color,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(21.dp),
         )
-        Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(1.dp))
         Text(
             item.label,
             color = color,
-            fontSize = 12.sp,
+            fontSize = 10.5.sp,
+            lineHeight = 12.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
         )

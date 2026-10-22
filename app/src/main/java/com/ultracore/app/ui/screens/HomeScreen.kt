@@ -44,7 +44,13 @@ import com.ultracore.app.core.CapabilityStatus
 import com.ultracore.app.core.DeviceInfo
 import com.ultracore.app.home.HomeViewModel
 import com.ultracore.app.shizuku.ShizukuState
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.PriorityHigh
+import com.ultracore.app.ui.components.ExpressiveShapes
+import com.ultracore.app.ui.components.ExpressiveTones
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.ShapeIcon
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.NeonAmber
 import com.ultracore.app.ui.theme.NeonCyan
@@ -202,8 +208,8 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 private fun DeviceCard(shizuku: ShizukuState) {
     UltraCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.PhoneAndroid, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.width(12.dp))
+            ShapeIcon(Icons.Outlined.PhoneAndroid, ExpressiveShapes.Flower, ExpressiveTones.Primary, size = 56.dp)
+            Spacer(Modifier.width(16.dp))
             Column {
                 Text(
                     "${DeviceInfo.manufacturer} ${DeviceInfo.model}",
@@ -235,15 +241,16 @@ private fun DeviceCard(shizuku: ShizukuState) {
 
 @Composable
 private fun CapabilityRow(result: CapabilityResult) {
-    val (icon, color) = when (result.status) {
-        CapabilityStatus.AVAILABLE -> Icons.Outlined.CheckCircle to NeonGreen
-        CapabilityStatus.PARTIAL -> Icons.Outlined.WarningAmber to NeonAmber
-        CapabilityStatus.UNAVAILABLE -> Icons.Outlined.Lock to NeonRed
+    // Each status has its own shape and tone, so it reads at a glance.
+    val (icon, shape, color) = when (result.status) {
+        CapabilityStatus.AVAILABLE -> Triple(Icons.Rounded.Check, ExpressiveShapes.Cookie, ExpressiveTones.Green)
+        CapabilityStatus.PARTIAL -> Triple(Icons.Rounded.PriorityHigh, ExpressiveShapes.Pentagon, ExpressiveTones.Amber)
+        CapabilityStatus.UNAVAILABLE -> Triple(Icons.Rounded.Lock, ExpressiveShapes.Clover, ExpressiveTones.Red)
     }
     UltraCard {
-        Row(verticalAlignment = Alignment.Top) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ShapeIcon(icon, shape, color, size = 40.dp)
+            Spacer(Modifier.width(14.dp))
             Column {
                 Text(
                     result.capability.title,

@@ -67,7 +67,7 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
                     Column(Modifier.weight(1f)) {
                         Text(
                             passport.level?.let { "$it %" } ?: "—",
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.displayMedium,
                             fontWeight = FontWeight.Bold,
                             color = levelColor(passport.level),
                         )
