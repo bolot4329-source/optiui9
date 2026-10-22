@@ -35,19 +35,27 @@ jobs:
           gradle-version: '8.10.2'
           cache-read-only: false
  
-      - name: 5. Build Debug APK
-        run: gradle assembleDebug --stacktrace --no-daemon
+      - name: 5. Build Debug and Release APKs
+        run: gradle assembleDebug assembleRelease --stacktrace --no-daemon
  
       - name: 6. Rename APK with Commit SHA
         run: |
-          cd app/build/outputs/apk/debug
-          mv app-debug.apk "UltraCore-${GITHUB_SHA::7}.apk"
+          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/UltraCore-debug-${GITHUB_SHA::7}.apk"
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/UltraCore-${GITHUB_SHA::7}.apk"
  
       - name: 7. Upload APK Artifact
         uses: actions/upload-artifact@v6
         with:
           name: UltraCore-Debug
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: 8. Upload Release APK (faster, recommended)
+        uses: actions/upload-artifact@v6
+        with:
+          name: UltraCore-Release
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 14
           if-no-files-found: error
  

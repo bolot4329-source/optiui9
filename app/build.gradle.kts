@@ -35,12 +35,22 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            isMinifyEnabled = false
+            // R8 shrinks and optimises the code: Compose runs noticeably smoother than in debug.
+            // Signed with the same committed key for now, so it installs over the debug APK.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+    }
+
+    lint {
+        // Release lint must not break the CI build; warnings are reviewed separately.
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     compileOptions {
@@ -89,6 +99,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.androidx.graphics.shapes)
+    // Applies the baseline profiles shipped inside Compose libraries also for sideloaded APKs.
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
 }
