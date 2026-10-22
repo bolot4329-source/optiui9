@@ -18,7 +18,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,24 +39,23 @@ import com.ultracore.app.ui.theme.NeonCyan
 import com.ultracore.app.ui.theme.NeonRed
 import com.ultracore.app.ui.theme.TextSecondary
 
-/** Small warning/info banner card. */
+/** Small info banner: tonal tint of [color] instead of a border (Material 3 Expressive). */
 @Composable
 fun InfoBanner(text: String, color: Color = NeonAmber, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(CardRadius),
-        color = CardBlack,
-        border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
+        color = color.copy(alpha = 0.12f),
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Info, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(12.dp))
             Text(text, style = MaterialTheme.typography.bodySmall, color = color)
         }
     }
 }
 
-/** Big neon action button. */
+/** Big pill button; its corners tighten with a spring while pressed (Expressive shape morph). */
 @Composable
 fun PrimaryButton(
     text: String,
@@ -60,13 +64,17 @@ fun PrimaryButton(
     enabled: Boolean = true,
     icon: ImageVector? = null,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val corner by animateDpAsState(if (pressed) 14.dp else 28.dp, expressiveSpring(), label = "btnCorner")
     Button(
         onClick = onClick,
         enabled = enabled,
+        interactionSource = interaction,
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(16.dp),
+            .height(56.dp),
+        shape = RoundedCornerShape(corner),
         colors = ButtonDefaults.buttonColors(
             containerColor = NeonCyan,
             contentColor = AmoledBlack,
@@ -82,7 +90,7 @@ fun PrimaryButton(
     }
 }
 
-/** Outlined red/neutral secondary button. */
+/** Secondary pill button. */
 @Composable
 fun SecondaryButton(
     text: String,
@@ -94,8 +102,9 @@ fun SecondaryButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, if (enabled) color else CardBorder),
+        modifier = modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, if (enabled) color.copy(alpha = 0.6f) else CardBorder),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
     ) {
         Text(text)

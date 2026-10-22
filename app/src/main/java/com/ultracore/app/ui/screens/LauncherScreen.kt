@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -68,6 +69,7 @@ import com.ultracore.app.launcher.LauncherFilter
 import com.ultracore.app.launcher.LauncherViewModel
 import com.ultracore.app.ui.components.AppIcon
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.MorphChip
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBlack
@@ -106,7 +108,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
@@ -139,17 +141,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     LauncherFilter.entries.forEach { f ->
-                        val selected = f == filter
-                        OutlinedButton(
-                            onClick = { viewModel.setFilter(f) },
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, if (selected) NeonCyan else CardBorder),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (selected) NeonCyan.copy(alpha = 0.15f) else AmoledBlack,
-                                contentColor = if (selected) NeonCyan else TextPrimary,
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        ) { Text(f.title, fontSize = 13.sp) }
+                        MorphChip(text = f.title, selected = f == filter, onClick = { viewModel.setFilter(f) })
                     }
                 }
             }
@@ -206,7 +198,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
 
         message?.let { text ->
             Snackbar(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = LocalBottomBarInset.current),
                 containerColor = CardBlack,
                 contentColor = TextPrimary,
                 action = { TextButton(onClick = viewModel::clearMessage) { Text("OK", color = NeonCyan) } },

@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -76,6 +77,7 @@ import com.ultracore.app.manager.UltraCoreProfile
 import com.ultracore.app.sandbox.SandboxState
 import com.ultracore.app.ui.components.AppIcon
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.MorphChip
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBlack
@@ -122,7 +124,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = if (selected.isNotEmpty()) 150.dp else 24.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + if (selected.isNotEmpty()) 150.dp else 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (!connected) {
@@ -245,7 +247,9 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                 enabled = connected && busy == null,
                 onOp = { confirmBatch = it },
                 onClear = viewModel::clearSelection,
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = LocalBottomBarInset.current - 8.dp),
             )
         }
 
@@ -375,16 +379,7 @@ private fun ImportDialog(profile: UltraCoreProfile, onApply: () -> Unit, onDismi
 
 @Composable
 private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, if (selected) NeonCyan else CardBorder),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (selected) NeonCyan.copy(alpha = 0.15f) else AmoledBlack,
-            contentColor = if (selected) NeonCyan else TextPrimary,
-        ),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-    ) { Text(text, fontSize = 13.sp) }
+    MorphChip(text = text, selected = selected, onClick = onClick)
 }
 
 @Composable

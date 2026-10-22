@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,7 +20,10 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import com.ultracore.app.ui.theme.ThemePrefs
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -62,7 +66,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { DeviceCard(shizuku) }
@@ -120,6 +124,30 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             }
         } else {
             items(results, key = { it.capability.name }) { CapabilityRow(it) }
+        }
+
+        item {
+            val context = LocalContext.current
+            UltraCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Цвета из обоев", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text(
+                            if (ThemePrefs.dynamicColors) {
+                                "Material You: оттенки подбираются под обои телефона"
+                            } else {
+                                "Классическая неоновая тема UltraCore"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                        )
+                    }
+                    Switch(
+                        checked = ThemePrefs.dynamicColors,
+                        onCheckedChange = { ThemePrefs.setDynamic(context, it) },
+                    )
+                }
+            }
         }
 
         item {

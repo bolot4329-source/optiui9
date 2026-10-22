@@ -6,38 +6,67 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Terminal
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ultracore.app.shizuku.ShizukuManager
+import com.ultracore.app.ui.components.GlassBarHeight
+import com.ultracore.app.ui.components.GlassBarItem
+import com.ultracore.app.ui.components.GlassBottomBar
+import com.ultracore.app.ui.components.LocalBottomBarInset
 import com.ultracore.app.ui.components.SubTabs
 import com.ultracore.app.ui.components.SystemStatusHeader
 import com.ultracore.app.ui.screens.AppManagerScreen
@@ -46,21 +75,16 @@ import com.ultracore.app.ui.screens.CleanerScreen
 import com.ultracore.app.ui.screens.HomeScreen
 import com.ultracore.app.ui.screens.LauncherScreen
 import com.ultracore.app.ui.screens.OptimizerScreen
-import com.ultracore.app.ui.screens.PhasePlaceholder
 import com.ultracore.app.ui.screens.SorterScreen
 import com.ultracore.app.ui.screens.TerminalSection
 import com.ultracore.app.ui.screens.TweaksScreen
 import com.ultracore.app.ui.theme.AmoledBlack
-import com.ultracore.app.ui.theme.BarBlack
-import com.ultracore.app.ui.theme.NeonCyan
-import com.ultracore.app.ui.theme.NeonCyanDim
-import com.ultracore.app.ui.theme.TextSecondary
 
-private enum class Destination(val route: String, val label: String, val icon: ImageVector) {
-    Home("home", "Главная", Icons.Outlined.Home),
-    Files("files", "Файлы", Icons.Outlined.FolderOpen),
-    Apps("apps", "Приложения", Icons.Outlined.Apps),
-    Terminal("terminal", "Терминал", Icons.Outlined.Terminal),
+private enum class Destination(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
+    Home("home", "Главная", Icons.Outlined.Home, Icons.Rounded.Home),
+    Files("files", "Файлы", Icons.Outlined.Folder, Icons.Rounded.Folder),
+    Apps("apps", "Приложения", Icons.Outlined.Apps, Icons.Rounded.Apps),
+    Terminal("terminal", "Терминал", Icons.Outlined.Terminal, Icons.Rounded.Terminal),
 }
 
 @Composable
@@ -78,91 +102,109 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
         onPauseOrDispose { }
     }
 
-    Scaffold(
-        containerColor = AmoledBlack,
-        bottomBar = { UltraBottomBar(navController) },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                // Lets the terminal's imePadding() lift the input exactly above the keyboard.
-                .consumeWindowInsets(padding),
-        ) {
-            SystemStatusHeader(
-                shizukuState = shizukuState,
-                storageGranted = storageGranted,
-                shellTest = shellTest,
-                onOpenShizuku = { context.openShizukuApp() },
-                onRequestShizuku = viewModel::requestShizukuPermission,
-                onReconnectShizuku = viewModel::reconnectShizuku,
-                onGrantStorage = { context.openAllFilesAccessSettings() },
-                onRunShellTest = viewModel::runShellTest,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-            )
+    // Everything above the bar is recorded into this layer; the glass bar draws it blurred.
+    val contentLayer = rememberGraphicsLayer()
+    var contentOrigin by remember { mutableStateOf(Offset.Zero) }
 
-            NavHost(
-                navController = navController,
-                startDestination = Destination.Home.route,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            ) {
-                composable(Destination.Home.route) {
-                    SubTabs(listOf("Обзор", "Батарея", "Твики", "Оптимизация")) { tab ->
-                        when (tab) {
-                            0 -> HomeScreen()
-                            1 -> BatteryScreen()
-                            2 -> TweaksScreen()
-                            else -> OptimizerScreen()
-                        }
-                    }
-                }
-                composable(Destination.Files.route) {
-                    SubTabs(listOf("Очистка", "Сортировка")) { tab ->
-                        if (tab == 0) CleanerScreen() else SorterScreen()
-                    }
-                }
-                composable(Destination.Apps.route) {
-                    SubTabs(listOf("Экраны", "Управление")) { tab ->
-                        if (tab == 0) {
-                            LauncherScreen()
-                        } else {
-                            AppManagerScreen()
-                        }
-                    }
-                }
-                composable(Destination.Terminal.route) { TerminalSection() }
-            }
-        }
-    }
-}
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val barBottomMargin = 12.dp
+    // Scrolling screens leave this much room at the end so nothing hides under the bar.
+    val bottomInset = GlassBarHeight + barBottomMargin + navBottom + 8.dp
 
-@Composable
-private fun UltraBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val selectedIndex = Destination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
-    NavigationBar(containerColor = BarBlack, tonalElevation = 0.dp) {
-        Destination.entries.forEach { dest ->
-            NavigationBarItem(
-                selected = currentRoute == dest.route,
-                onClick = {
-                    navController.navigate(dest.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+    CompositionLocalProvider(LocalBottomBarInset provides bottomInset) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(AmoledBlack),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { contentOrigin = it.positionInRoot() }
+                    .drawWithContent {
+                        contentLayer.record { this@drawWithContent.drawContent() }
+                        drawLayer(contentLayer)
+                    }
+                    .background(AmoledBlack)
+                    .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))),
+            ) {
+                SystemStatusHeader(
+                    shizukuState = shizukuState,
+                    storageGranted = storageGranted,
+                    shellTest = shellTest,
+                    onOpenShizuku = { context.openShizukuApp() },
+                    onRequestShizuku = viewModel::requestShizukuPermission,
+                    onReconnectShizuku = viewModel::reconnectShizuku,
+                    onGrantStorage = { context.openAllFilesAccessSettings() },
+                    onRunShellTest = viewModel::runShellTest,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+                )
+
+                NavHost(
+                    navController = navController,
+                    startDestination = Destination.Home.route,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    // Springy Expressive transitions between sections.
+                    enterTransition = {
+                        fadeIn(tween(220)) + scaleIn(spring(dampingRatio = 0.8f, stiffness = 380f), initialScale = 0.94f)
+                    },
+                    exitTransition = { fadeOut(tween(120)) },
+                    popEnterTransition = {
+                        fadeIn(tween(220)) + scaleIn(spring(dampingRatio = 0.8f, stiffness = 380f), initialScale = 0.94f)
+                    },
+                    popExitTransition = { fadeOut(tween(120)) },
+                ) {
+                    composable(Destination.Home.route) {
+                        SubTabs(listOf("Обзор", "Батарея", "Твики", "Оптимизация")) { tab ->
+                            when (tab) {
+                                0 -> HomeScreen()
+                                1 -> BatteryScreen()
+                                2 -> TweaksScreen()
+                                else -> OptimizerScreen()
+                            }
+                        }
+                    }
+                    composable(Destination.Files.route) {
+                        SubTabs(listOf("Очистка", "Сортировка")) { tab ->
+                            if (tab == 0) CleanerScreen() else SorterScreen()
+                        }
+                    }
+                    composable(Destination.Apps.route) {
+                        SubTabs(listOf("Экраны", "Управление")) { tab ->
+                            if (tab == 0) LauncherScreen() else AppManagerScreen()
+                        }
+                    }
+                    composable(Destination.Terminal.route) { TerminalSection() }
+                }
+            }
+
+            GlassBottomBar(
+                items = Destination.entries.map { GlassBarItem(it.label, it.icon, it.selectedIcon) },
+                selected = selectedIndex,
+                onSelect = { index ->
+                    val dest = Destination.entries[index]
+                    if (dest.route != currentRoute) {
+                        navController.navigate(dest.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 },
-                icon = { Icon(dest.icon, contentDescription = dest.label) },
-                label = { Text(dest.label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = NeonCyan,
-                    selectedTextColor = NeonCyan,
-                    indicatorColor = NeonCyanDim,
-                    unselectedIconColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                ),
+                backdrop = contentLayer,
+                backdropOrigin = contentOrigin,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, bottom = barBottomMargin)
+                    .widthIn(max = 460.dp)
+                    .fillMaxWidth(),
             )
         }
     }

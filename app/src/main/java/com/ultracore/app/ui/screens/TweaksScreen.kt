@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,7 @@ import com.ultracore.app.tweaks.TweaksRepository
 import com.ultracore.app.tweaks.TweaksState
 import com.ultracore.app.tweaks.TweaksViewModel
 import com.ultracore.app.ui.components.InfoBanner
+import com.ultracore.app.ui.components.MorphChip
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBorder
@@ -62,7 +64,7 @@ fun TweaksScreen(viewModel: TweaksViewModel = viewModel()) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (!state.connected) {
@@ -268,17 +270,12 @@ private fun <T> Options(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         options.forEach { option ->
-            val isSelected = option == selected
-            OutlinedButton(
+            MorphChip(
+                text = label(option),
+                selected = option == selected,
                 onClick = { onSelect(option) },
                 enabled = enabled,
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, if (isSelected) NeonCyan else CardBorder),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isSelected) NeonCyan.copy(alpha = 0.15f) else AmoledBlack,
-                    contentColor = if (isSelected) NeonCyan else TextPrimary,
-                ),
-            ) { Text(label(option)) }
+            )
         }
     }
 }

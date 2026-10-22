@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -134,7 +135,7 @@ fun OptimizerScreen(viewModel: OptimizerViewModel = viewModel()) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { TelemetryCard(telemetry, onRefresh = viewModel::refreshTelemetry) }

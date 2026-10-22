@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -14,7 +15,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -119,11 +122,13 @@ private fun ConsoleScreen(viewModel: TerminalViewModel) {
         if (lines.isNotEmpty()) listState.scrollToItem(lines.lastIndex)
     }
 
+    // Stay above the glass bar; when the keyboard is open, stay above the keyboard instead.
+    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val barInset = LocalBottomBarInset.current
     Column(
         Modifier
             .fillMaxSize()
-            .imePadding()
-            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            .padding(start = 16.dp, end = 16.dp, bottom = maxOf(barInset, imeBottom + 12.dp)),
     ) {
         Surface(
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -258,7 +263,7 @@ private fun CommandBookScreen(viewModel: TerminalViewModel, openConsole: () -> U
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (grouped.isEmpty()) {
@@ -385,7 +390,7 @@ private fun MacrosScreen(viewModel: TerminalViewModel, openConsole: () -> Unit) 
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
