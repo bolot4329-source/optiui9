@@ -88,6 +88,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
 
+    implementation(libs.androidx.graphics.shapes)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
 }

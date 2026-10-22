@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
@@ -272,7 +273,7 @@ private fun TweakCard(
                 color = TextPrimary,
             )
             if (busy) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = NeonCyan)
+                ExpressiveLoadingIndicator(size = 26.dp, color = NeonCyan)
             } else if (id in state.canReset) {
                 TextButton(onClick = onReset, enabled = state.connected) {
                     Text("Сбросить", color = NeonAmber)

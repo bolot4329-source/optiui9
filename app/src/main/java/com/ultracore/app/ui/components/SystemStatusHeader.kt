@@ -153,11 +153,7 @@ fun SystemStatusHeader(
             colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
         ) {
             if (running) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = NeonCyan,
-                )
+                ExpressiveLoadingIndicator(size = 22.dp, color = NeonCyan)
             } else {
                 Icon(Icons.Outlined.Terminal, contentDescription = null, modifier = Modifier.size(18.dp))
             }
@@ -265,11 +261,7 @@ private fun StatusRow(
             )
         }
         when {
-            busy -> CircularProgressIndicator(
-                modifier = Modifier.size(22.dp),
-                strokeWidth = 2.dp,
-                color = NeonAmber,
-            )
+            busy -> ExpressiveLoadingIndicator(size = 28.dp, color = NeonAmber)
             actionLabel != null && onAction != null -> Button(
                 onClick = onAction,
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),

@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
@@ -157,7 +158,7 @@ fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
             progress?.let { p ->
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = NeonCyan)
+                        ExpressiveLoadingIndicator(size = 24.dp, color = NeonCyan)
                         Spacer(Modifier.width(10.dp))
                         Text(
                             if (p.total > 0) "Читаю приложения: ${p.done} из ${p.total}" else "Читаю приложения…",

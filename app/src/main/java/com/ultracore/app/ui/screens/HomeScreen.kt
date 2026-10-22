@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.layout.Arrangement
@@ -109,7 +110,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         }
                     }
                     if (checking) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = NeonCyan)
+                        ExpressiveLoadingIndicator(size = 28.dp, color = NeonCyan)
                     } else {
                         IconButton(onClick = viewModel::recheck, enabled = connected) {
                             Icon(
@@ -177,7 +178,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 Spacer(Modifier.size(8.dp))
                 if (resetBusy != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = NeonAmber)
+                        ExpressiveLoadingIndicator(size = 24.dp, color = NeonAmber)
                         Spacer(Modifier.width(10.dp))
                         Text(resetBusy.orEmpty(), color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                     }

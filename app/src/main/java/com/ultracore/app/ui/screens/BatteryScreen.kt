@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,7 +77,7 @@ fun BatteryScreen(viewModel: BatteryViewModel = viewModel()) {
                         }
                     }
                     if (passport.loadingShell) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = NeonCyan)
+                        ExpressiveLoadingIndicator(size = 28.dp, color = NeonCyan)
                     } else {
                         IconButton(onClick = viewModel::refresh) {
                             Icon(Icons.Outlined.Refresh, contentDescription = "Обновить", tint = NeonCyan)

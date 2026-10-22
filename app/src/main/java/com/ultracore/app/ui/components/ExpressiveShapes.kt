@@ -1,6 +1,21 @@
 package com.ultracore.app.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asComposePath
+import androidx.graphics.shapes.CornerRounding
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.star
+import androidx.graphics.shapes.toPath
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,48 +34,117 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.ultracore.app.ui.theme.NeonCyan
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
- * Smooth «blob» shape from the Material 3 Expressive shape set: a circle whose radius waves
- * [lobes] times around (r = 1 − depth·(1 − cos nθ)/2). Few deep lobes give a clover,
- * many shallow ones a cookie or a sunny burst.
+ * Shape from an official [RoundedPolygon] (androidx.graphics:graphics-shapes — the same library
+ * Material 3 Expressive builds its shapes and LoadingIndicator on). The path is cached per size.
  */
-class PolarShape(
-    private val lobes: Int,
-    private val depth: Float,
-    private val rotationDegrees: Float = 0f,
-) : Shape {
+class PolygonShape(polygon: RoundedPolygon, private val rotationDegrees: Float = 0f) : Shape {
+    private val normalized = polygon.normalized()
+    private var cachedSize: Size? = null
+    private var cachedPath: Path? = null
+
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val path = Path()
-        val steps = 240
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val rot = rotationDegrees / 180f * PI.toFloat()
-        for (i in 0..steps) {
-            val t = (i.toFloat() / steps) * 2f * PI.toFloat()
-            val r = 1f - depth * (1f - cos(lobes * (t - rot))) / 2f
-            val x = cx + cx * r * cos(t)
-            val y = cy + cy * r * sin(t)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        path.close()
+        val cached = cachedPath
+        if (cached != null && cachedSize == size) return Outline.Generic(cached)
+        val androidPath = normalized.toPath(android.graphics.Path())
+        val matrix = android.graphics.Matrix()
+        matrix.setScale(size.width, size.height)
+        if (rotationDegrees != 0f) matrix.postRotate(rotationDegrees, size.width / 2f, size.height / 2f)
+        androidPath.transform(matrix)
+        val path = androidPath.asComposePath()
+        cachedPath = path
+        cachedSize = size
         return Outline.Generic(path)
     }
 }
 
+/** Polygons of the Material 3 Expressive shape catalogue (radius 1, centred at 0,0). */
+object ExpressivePolygons {
+    val Cookie: RoundedPolygon = RoundedPolygon.star(
+        numVerticesPerRadius = 9, radius = 1f, innerRadius = 0.8f,
+        rounding = CornerRounding(0.18f), innerRounding = CornerRounding(0.18f),
+    )
+    val Sunny: RoundedPolygon = RoundedPolygon.star(
+        numVerticesPerRadius = 10, radius = 1f, innerRadius = 0.84f,
+        rounding = CornerRounding(0.1f), innerRounding = CornerRounding(0.1f),
+    )
+    val Flower: RoundedPolygon = RoundedPolygon.star(
+        numVerticesPerRadius = 8, radius = 1f, innerRadius = 0.62f,
+        rounding = CornerRounding(0.3f), innerRounding = CornerRounding(0.08f),
+    )
+    val Clover: RoundedPolygon = RoundedPolygon.star(
+        numVerticesPerRadius = 4, radius = 1f, innerRadius = 0.42f,
+        rounding = CornerRounding(0.55f), innerRounding = CornerRounding(0.12f),
+    )
+    val Pentagon: RoundedPolygon = RoundedPolygon(numVertices = 5, radius = 1f, rounding = CornerRounding(0.28f))
+    val Burst: RoundedPolygon = RoundedPolygon.star(
+        numVerticesPerRadius = 12, radius = 1f, innerRadius = 0.72f,
+        rounding = CornerRounding(0.06f), innerRounding = CornerRounding(0.06f),
+    )
+    val Soft: RoundedPolygon = RoundedPolygon(numVertices = 4, radius = 1f, rounding = CornerRounding(0.42f))
+}
+
 /** A few shapes from the Material 3 Expressive catalogue. */
 object ExpressiveShapes {
-    val Cookie: Shape = PolarShape(lobes = 9, depth = 0.12f)
-    val Sunny: Shape = PolarShape(lobes = 12, depth = 0.10f)
-    val Flower: Shape = PolarShape(lobes = 8, depth = 0.22f, rotationDegrees = 22.5f)
-    val Clover: Shape = PolarShape(lobes = 4, depth = 0.36f, rotationDegrees = 45f)
-    val Pentagon: Shape = PolarShape(lobes = 5, depth = 0.16f, rotationDegrees = -90f)
-    val Soft: Shape = PolarShape(lobes = 4, depth = 0.08f, rotationDegrees = 45f)
+    val Cookie: Shape = PolygonShape(ExpressivePolygons.Cookie, rotationDegrees = -90f)
+    val Sunny: Shape = PolygonShape(ExpressivePolygons.Sunny, rotationDegrees = -90f)
+    val Flower: Shape = PolygonShape(ExpressivePolygons.Flower, rotationDegrees = -90f)
+    val Clover: Shape = PolygonShape(ExpressivePolygons.Clover, rotationDegrees = 45f)
+    val Pentagon: Shape = PolygonShape(ExpressivePolygons.Pentagon, rotationDegrees = -90f)
+    val Burst: Shape = PolygonShape(ExpressivePolygons.Burst)
+    val Soft: Shape = PolygonShape(ExpressivePolygons.Soft, rotationDegrees = 45f)
     val Arch: Shape = RoundedCornerShape(topStartPercent = 50, topEndPercent = 50, bottomStartPercent = 18, bottomEndPercent = 18)
     val Pill: Shape = RoundedCornerShape(50)
+}
+
+private val LoadingSequence = listOf(
+    ExpressivePolygons.Cookie,
+    ExpressivePolygons.Clover,
+    ExpressivePolygons.Sunny,
+    ExpressivePolygons.Pentagon,
+    ExpressivePolygons.Flower,
+).map { it.normalized() }
+
+/**
+ * Material 3 Expressive LoadingIndicator: a filled shape that keeps morphing
+ * cookie → clover → sunny → pentagon → flower while slowly rotating.
+ */
+@Composable
+fun ExpressiveLoadingIndicator(
+    modifier: Modifier = Modifier,
+    size: Dp = 24.dp,
+    color: Color = NeonCyan,
+) {
+    val morphs = remember {
+        LoadingSequence.indices.map { Morph(LoadingSequence[it], LoadingSequence[(it + 1) % LoadingSequence.size]) }
+    }
+    val transition = rememberInfiniteTransition(label = "loading")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = morphs.size.toFloat(),
+        animationSpec = infiniteRepeatable(tween(morphs.size * 650, easing = LinearEasing)),
+        label = "loadingPhase",
+    )
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3600, easing = LinearEasing)),
+        label = "loadingRotation",
+    )
+    val androidPath = remember { android.graphics.Path() }
+    val matrix = remember { android.graphics.Matrix() }
+    Canvas(modifier.size(size)) {
+        val index = phase.toInt().coerceIn(0, morphs.lastIndex)
+        val progress = FastOutSlowInEasing.transform((phase - index).coerceIn(0f, 1f))
+        androidPath.rewind()
+        morphs[index].toPath(progress, androidPath)
+        matrix.reset()
+        matrix.setScale(this.size.width, this.size.height)
+        matrix.postRotate(rotation, this.size.width / 2f, this.size.height / 2f)
+        androidPath.transform(matrix)
+        drawPath(androidPath.asComposePath(), color)
+    }
 }
 
 /** Saturated tones used for shaped icons, as in the Expressive examples. */

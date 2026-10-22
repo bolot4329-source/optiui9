@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.ExpressiveLoadingIndicator
 import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.Manifest
@@ -152,7 +153,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                         Icon(Icons.Outlined.Download, contentDescription = "Установить APK", tint = if (connected) NeonCyan else CardBorder)
                     }
                     if (loading) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = NeonCyan)
+                        ExpressiveLoadingIndicator(size = 28.dp, color = NeonCyan)
                     } else {
                         IconButton(onClick = viewModel::refresh) {
                             Icon(Icons.Outlined.Refresh, contentDescription = "Обновить", tint = NeonCyan)
@@ -262,7 +263,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
                 border = BorderStroke(1.dp, CardBorder),
             ) {
                 Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = NeonCyan)
+                    ExpressiveLoadingIndicator(size = 28.dp, color = NeonCyan)
                     Spacer(Modifier.width(14.dp))
                     Text(text, color = TextPrimary)
                 }
