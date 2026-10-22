@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.os.Environment
 import androidx.compose.foundation.clickable
@@ -168,6 +169,7 @@ fun CleanerScreen(viewModel: CleanerViewModel = viewModel()) {
     if (confirmDelete && results != null) {
         val chosen = results.scan.allItems.filter { it.path in selected }
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { confirmDelete = false },
             containerColor = CardBlack,
             title = { Text("Удалить выбранное?", color = TextPrimary) },

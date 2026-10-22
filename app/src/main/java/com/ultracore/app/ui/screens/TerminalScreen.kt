@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -80,6 +81,8 @@ import com.ultracore.app.terminal.TerminalViewModel
 import com.ultracore.app.ui.components.InfoBanner
 import com.ultracore.app.ui.components.SubTabs
 import com.ultracore.app.ui.components.UltraCard
+import com.ultracore.app.ui.components.groupShape
+import androidx.compose.foundation.lazy.itemsIndexed
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBorder
 import com.ultracore.app.ui.theme.NeonAmber
@@ -264,7 +267,7 @@ private fun CommandBookScreen(viewModel: TerminalViewModel, openConsole: () -> U
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = LocalBottomBarInset.current + 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         if (grouped.isEmpty()) {
             item { InfoBanner("Каталог команд не загрузился", color = NeonRed) }
@@ -275,11 +278,11 @@ private fun CommandBookScreen(viewModel: TerminalViewModel, openConsole: () -> U
                     category,
                     style = MaterialTheme.typography.titleSmall,
                     color = NeonCyan,
-                    modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                    modifier = Modifier.padding(top = 18.dp, bottom = 8.dp, start = 4.dp),
                 )
             }
-            items(entries, key = { "${it.category}/${it.title}" }) { entry ->
-                UltraCard(Modifier.clickable { selected = entry }) {
+            itemsIndexed(entries, key = { _, it -> "${it.category}/${it.title}" }) { index, entry ->
+                UltraCard(Modifier.clickable { selected = entry }, shape = groupShape(index, entries.size)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             entry.title,
@@ -336,6 +339,7 @@ private fun CommandDialog(
     val command = CommandBook.fill(entry, values)
 
     AlertDialog(
+        modifier = UltraDialogModifier,
         onDismissRequest = onDismiss,
         title = { Text(entry.title) },
         text = {
@@ -464,6 +468,7 @@ private fun MacrosScreen(viewModel: TerminalViewModel, openConsole: () -> Unit) 
 
     confirmRun?.let { macro ->
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { confirmRun = null },
             title = { Text("Запустить «${macro.name}»?") },
             text = {
@@ -486,6 +491,7 @@ private fun MacrosScreen(viewModel: TerminalViewModel, openConsole: () -> Unit) 
 
     confirmDelete?.let { macro ->
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { confirmDelete = null },
             title = { Text("Удалить «${macro.name}»?") },
             confirmButton = {
@@ -511,6 +517,7 @@ private fun MacroEditor(
     var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
+        modifier = UltraDialogModifier,
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Новый макрос" else "Изменить макрос") },
         text = {

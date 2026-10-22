@@ -78,6 +78,7 @@ import com.ultracore.app.ui.components.ExpressiveShapes
 import com.ultracore.app.ui.components.ExpressiveTones
 import com.ultracore.app.ui.components.ShapeIcon
 import com.ultracore.app.ui.components.UltraCard
+import com.ultracore.app.ui.components.groupShape
 import com.ultracore.app.ui.theme.AmoledBlack
 import com.ultracore.app.ui.theme.CardBlack
 import com.ultracore.app.ui.theme.CardBorder
@@ -191,8 +192,11 @@ fun OptimizerScreen(viewModel: OptimizerViewModel = viewModel()) {
             )
         }
 
-        items(TOOL_ORDER) { tool ->
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TOOL_ORDER.forEachIndexed { index, tool ->
             ToolCard(
+                shape = groupShape(index, TOOL_ORDER.size),
                 tool = tool,
                 result = results[tool],
                 isRunning = running?.tool == tool && running?.boost == null,
@@ -202,6 +206,8 @@ fun OptimizerScreen(viewModel: OptimizerViewModel = viewModel()) {
                 onRun = { viewModel.runTool(tool) },
                 onCancel = viewModel::cancel,
             )
+                }
+            }
         }
 
         item { ConsoleCard(log = log, onClear = viewModel::clearLog) }
@@ -406,6 +412,7 @@ private fun BoostCard(
 
 @Composable
 private fun ToolCard(
+    shape: androidx.compose.ui.graphics.Shape,
     tool: OptimizerTool,
     result: OptimizationResult?,
     isRunning: Boolean,
@@ -415,7 +422,7 @@ private fun ToolCard(
     onRun: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    UltraCard {
+    UltraCard(shape = shape) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ShapeIcon(tool.icon(), tool.shape(), tool.tone(), size = 44.dp)
             Spacer(Modifier.width(14.dp))

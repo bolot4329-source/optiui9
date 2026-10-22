@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.Manifest
 import android.content.Intent
@@ -289,6 +290,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
 
     confirmBatch?.let { op ->
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { confirmBatch = null },
             title = { Text("${op.title}: ${selected.size} прил.?") },
             text = {
@@ -325,6 +327,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = viewModel()) {
 
     if (confirmRevert) {
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { confirmRevert = false },
             title = { Text("Вернуть всё?") },
             text = {
@@ -355,6 +358,7 @@ private fun describe(c: AppChanges): String =
 @Composable
 private fun ImportDialog(profile: UltraCoreProfile, onApply: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
+        modifier = UltraDialogModifier,
         onDismissRequest = onDismiss,
         title = { Text("Применить список?") },
         text = {
@@ -491,6 +495,7 @@ private fun AppActionsDialog(
     val protected = app.protectedReason != null
 
     AlertDialog(
+        modifier = UltraDialogModifier,
         onDismissRequest = onDismiss,
         title = { Text(app.label, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
@@ -637,6 +642,7 @@ private fun InstallDialog(onDismiss: () -> Unit, onInstall: (InstallOptions) -> 
     var downgrade by remember { mutableStateOf(false) }
     var asPlay by remember { mutableStateOf(false) }
     AlertDialog(
+        modifier = UltraDialogModifier,
         onDismissRequest = onDismiss,
         title = { Text("Установить приложение") },
         text = {
@@ -666,6 +672,7 @@ private fun InstallDialog(onDismiss: () -> Unit, onInstall: (InstallOptions) -> 
 @Composable
 private fun ReportDialog(report: BatchReport, onDismiss: () -> Unit) {
     AlertDialog(
+        modifier = UltraDialogModifier,
         onDismissRequest = onDismiss,
         title = { Text(if (report.failures.isEmpty()) "${report.title}: ${report.done}" else report.title) },
         text = {

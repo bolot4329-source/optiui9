@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,8 @@ import com.ultracore.app.ui.components.ExpressiveShapes
 import com.ultracore.app.ui.components.ExpressiveTones
 import com.ultracore.app.ui.components.InfoBanner
 import com.ultracore.app.ui.components.ShapeIcon
+import com.ultracore.app.ui.components.groupShape
+import androidx.compose.ui.graphics.Shape
 import com.ultracore.app.ui.components.UltraCard
 import com.ultracore.app.ui.theme.NeonAmber
 import com.ultracore.app.ui.theme.NeonCyan
@@ -129,7 +132,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 )
             }
         } else {
-            items(results, key = { it.capability.name }) { CapabilityRow(it) }
+            // Connected group: one container visually, 2dp seams between rows.
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    results.forEachIndexed { index, result -> CapabilityRow(result, groupShape(index, results.size)) }
+                }
+            }
         }
 
         item {
@@ -184,6 +192,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     if (confirmReset) {
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { confirmReset = false },
             title = { Text("Вернуть телефон как было?") },
             text = { Text("Все приложения будут разморожены и восстановлены, ограничения сняты, твики сброшены к исходным значениям.") },
@@ -196,6 +205,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     resetReport?.let { text ->
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = viewModel::dismissResetReport,
             title = { Text("Готово") },
             text = { Text(text) },
@@ -240,16 +250,16 @@ private fun DeviceCard(shizuku: ShizukuState) {
 }
 
 @Composable
-private fun CapabilityRow(result: CapabilityResult) {
+private fun CapabilityRow(result: CapabilityResult, shape: Shape) {
     // Each status has its own shape and tone, so it reads at a glance.
-    val (icon, shape, color) = when (result.status) {
+    val (icon, iconShape, color) = when (result.status) {
         CapabilityStatus.AVAILABLE -> Triple(Icons.Rounded.Check, ExpressiveShapes.Cookie, ExpressiveTones.Green)
         CapabilityStatus.PARTIAL -> Triple(Icons.Rounded.PriorityHigh, ExpressiveShapes.Pentagon, ExpressiveTones.Amber)
         CapabilityStatus.UNAVAILABLE -> Triple(Icons.Rounded.Lock, ExpressiveShapes.Clover, ExpressiveTones.Red)
     }
-    UltraCard {
+    UltraCard(shape = shape) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ShapeIcon(icon, shape, color, size = 40.dp)
+            ShapeIcon(icon, iconShape, color, size = 40.dp)
             Spacer(Modifier.width(14.dp))
             Column {
                 Text(

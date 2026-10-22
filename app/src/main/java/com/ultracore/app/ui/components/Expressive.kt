@@ -1,6 +1,19 @@
 package com.ultracore.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.Icon
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -14,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,8 +44,19 @@ import com.ultracore.app.ui.theme.NeonCyanDim
 import com.ultracore.app.ui.theme.TextPrimary
 import com.ultracore.app.ui.theme.TextSecondary
 
-/** Bouncy spring used across the app (Material 3 Expressive «spatial» motion). */
-fun <T> expressiveSpring() = spring<T>(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)
+/**
+ * Material 3 Expressive motion: «spatial» springs bounce (position, scale, corners, shapes),
+ * «effects» springs never overshoot (colour, alpha).
+ */
+object ExpressiveMotion {
+    fun <T> spatialDefault() = spring<T>(dampingRatio = 0.58f, stiffness = 380f)
+    fun <T> spatialFast() = spring<T>(dampingRatio = 0.65f, stiffness = 850f)
+    fun <T> spatialSlow() = spring<T>(dampingRatio = 0.62f, stiffness = 260f)
+    fun <T> effects() = spring<T>(dampingRatio = 1f, stiffness = 500f)
+}
+
+/** Bouncy spring used across the app (spatial default). */
+fun <T> expressiveSpring() = ExpressiveMotion.spatialDefault<T>()
 
 /**
  * Toggle chip whose shape morphs on selection: round pill when off, squarer when on,
@@ -49,15 +74,19 @@ fun MorphChip(
     val pressed by interaction.collectIsPressedAsState()
     val corner by animateDpAsState(
         targetValue = when {
-            pressed -> 10.dp
-            selected -> 14.dp
+            pressed -> 8.dp
+            selected -> 12.dp
             else -> 24.dp
         },
         animationSpec = expressiveSpring(),
         label = "chipCorner",
     )
     val scale by animateFloatAsState(if (pressed) 0.94f else 1f, expressiveSpring(), label = "chipScale")
-    val container by animateColorAsState(if (selected) NeonCyanDim else Color.Transparent, label = "chipColor")
+    val container by animateColorAsState(
+        if (selected) NeonCyanDim else Color.Transparent,
+        ExpressiveMotion.effects(),
+        label = "chipColor",
+    )
     val content by animateColorAsState(
         when {
             !enabled -> TextSecondary
@@ -83,7 +112,20 @@ fun MorphChip(
             disabledContentColor = TextSecondary,
         ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-    ) { Text(text, fontSize = 14.sp) }
+    ) {
+        // A check mark springs in on the selected chip.
+        AnimatedVisibility(
+            visible = selected,
+            enter = scaleIn(ExpressiveMotion.spatialFast()) + expandHorizontally(ExpressiveMotion.spatialFast()),
+            exit = scaleOut(ExpressiveMotion.effects()) + shrinkHorizontally(ExpressiveMotion.effects()),
+        ) {
+            Row {
+                Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+        }
+        Text(text, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+    }
 }
 
 /**
@@ -93,12 +135,17 @@ fun MorphChip(
  */
 @Composable
 fun rememberLiquidEdges(selected: Int): Pair<Float, Float> {
+    // Direction is remembered until the next selection change, so a recomposition mid-flight
+    // cannot swap the fast and slow springs.
     var previous by remember { mutableIntStateOf(selected) }
-    val movingRight = selected >= previous
-    val fast = spring<Float>(dampingRatio = 0.72f, stiffness = 900f)
-    val slow = spring<Float>(dampingRatio = 0.68f, stiffness = 280f)
+    var movingRight by remember { mutableStateOf(true) }
+    if (selected != previous) {
+        movingRight = selected > previous
+        previous = selected
+    }
+    val fast = ExpressiveMotion.spatialFast<Float>()
+    val slow = ExpressiveMotion.spatialSlow<Float>()
     val left by animateFloatAsState(selected.toFloat(), if (movingRight) slow else fast, label = "liquidLeft")
     val right by animateFloatAsState(selected + 1f, if (movingRight) fast else slow, label = "liquidRight")
-    if (previous != selected) previous = selected
     return left to right
 }

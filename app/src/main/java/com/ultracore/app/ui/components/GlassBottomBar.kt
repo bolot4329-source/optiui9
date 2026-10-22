@@ -51,7 +51,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ultracore.app.ui.theme.BarBlack
+import com.ultracore.app.ui.theme.NeonCyan
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
 import com.ultracore.app.ui.theme.TextPrimary
 import com.ultracore.app.ui.theme.TextSecondary
 
@@ -60,7 +62,7 @@ val LocalBottomBarInset = compositionLocalOf { 0.dp }
 
 /** Compact floating bar, proportions like the system Phone app: ~56dp high, ~78dp per item. */
 val GlassBarHeight = 56.dp
-private val ItemWidth = 78.dp
+private val ItemWidth = 66.dp
 private val Inset = 4.dp
 
 data class GlassBarItem(
@@ -87,6 +89,12 @@ fun GlassBottomBar(
 ) {
     val shape = RoundedCornerShape(GlassBarHeight / 2)
     val blurLayer = rememberGraphicsLayer()
+    val density = LocalDensity.current
+    // Created once per radius: re-creating it every frame resets the GPU cache.
+    val blurEffect = remember(blurRadius, density) {
+        val r = with(density) { blurRadius.toPx() }
+        BlurEffect(r, r, TileMode.Clamp)
+    }
     var barOrigin by remember { mutableStateOf(Offset.Zero) }
 
     Box(
@@ -98,19 +106,18 @@ fun GlassBottomBar(
             .onGloballyPositioned { barOrigin = it.positionInRoot() }
             .drawBehind {
                 // 1) Live blurred copy of whatever is behind the bar.
-                val radius = blurRadius.toPx()
-                blurLayer.renderEffect = BlurEffect(radius, radius, TileMode.Clamp)
-                blurLayer.record {
+                if (blurLayer.renderEffect !== blurEffect) blurLayer.renderEffect = blurEffect
+                blurLayer.record(size = IntSize(size.width.toInt(), size.height.toInt())) {
                     val shift = barOrigin - backdropOrigin
                     translate(-shift.x, -shift.y) { drawLayer(backdrop) }
                 }
                 drawLayer(blurLayer)
                 // 2) Tint so icons stay readable on any content.
-                drawRect(BarBlack.copy(alpha = 0.55f))
+                drawRect(Color.Black.copy(alpha = 0.58f))
                 // 3) Soft light from above — the «glass» sheen.
                 drawRect(
                     Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.10f),
+                        0f to Color.White.copy(alpha = 0.14f),
                         0.45f to Color.White.copy(alpha = 0.02f),
                         1f to Color.Transparent,
                     ),
@@ -120,9 +127,9 @@ fun GlassBottomBar(
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
-                    0f to Color.White.copy(alpha = 0.32f),
+                    0f to Color.White.copy(alpha = 0.38f),
                     0.5f to Color.White.copy(alpha = 0.06f),
-                    1f to Color.White.copy(alpha = 0.14f),
+                    1f to Color.White.copy(alpha = 0.18f),
                 ),
                 shape = shape,
             ),
@@ -140,18 +147,11 @@ fun GlassBottomBar(
                     .clip(indicatorShape)
                     .background(
                         Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = 0.20f),
-                            1f to Color.White.copy(alpha = 0.10f),
+                            0f to NeonCyan.copy(alpha = 0.22f),
+                            1f to Color.White.copy(alpha = 0.08f),
                         ),
                     )
-                    .border(
-                        1.dp,
-                        Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = 0.30f),
-                            1f to Color.White.copy(alpha = 0.04f),
-                        ),
-                        indicatorShape,
-                    ),
+                    .border(1.dp, NeonCyan.copy(alpha = 0.35f), indicatorShape),
             )
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 items.forEachIndexed { index, item ->
@@ -174,7 +174,7 @@ private fun BarItem(item: GlassBarItem, selected: Boolean, onClick: () -> Unit, 
     val scale by animateFloatAsState(
         when {
             pressed -> 0.86f
-            selected -> 1.06f
+            selected -> 1.08f
             else -> 1f
         },
         expressiveSpring(),
@@ -196,7 +196,7 @@ private fun BarItem(item: GlassBarItem, selected: Boolean, onClick: () -> Unit, 
             if (selected) item.selectedIcon else item.icon,
             contentDescription = item.label,
             tint = color,
-            modifier = Modifier.size(21.dp),
+            modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.height(1.dp))
         Text(
@@ -206,6 +206,8 @@ private fun BarItem(item: GlassBarItem, selected: Boolean, onClick: () -> Unit, 
             lineHeight = 12.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(horizontal = 2.dp),
         )
     }
 }

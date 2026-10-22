@@ -75,9 +75,9 @@ private fun SegmentedPill(
     val (left, right) = rememberLiquidEdges(selected)
     BoxWithConstraints(
         modifier
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .border(1.dp, CardBorder, RoundedCornerShape(24.dp)),
+            .height(46.dp)
+            .clip(RoundedCornerShape(23.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(23.dp)),
     ) {
         val inset = 4.dp
         val itemWidth = (maxWidth - inset * 2) / titles.size
@@ -88,8 +88,9 @@ private fun SegmentedPill(
                 .offset(x = inset + itemWidth * left)
                 .width(itemWidth * (right - left))
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(20.dp))
-                .background(NeonCyanDim),
+                .clip(RoundedCornerShape(19.dp))
+                .background(NeonCyanDim)
+                .border(1.dp, NeonCyan.copy(alpha = 0.35f), RoundedCornerShape(19.dp)),
         )
         Row(Modifier.fillMaxSize().padding(horizontal = inset)) {
             titles.forEachIndexed { index, title ->

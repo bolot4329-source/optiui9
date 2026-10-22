@@ -27,7 +27,7 @@ private val ExpressiveShapes = Shapes(
     small = RoundedCornerShape(16.dp),
     medium = RoundedCornerShape(20.dp),
     large = RoundedCornerShape(CardRadius),
-    extraLarge = RoundedCornerShape(36.dp),
+    extraLarge = RoundedCornerShape(CardRadius),
 )
 
 /** Bolder titles and headlines, as in Material 3 Expressive «emphasized» styles. */
@@ -62,17 +62,26 @@ object ThemePrefs {
 
 /** Wallpaper colors on a true-black (AMOLED) background. */
 private fun ColorScheme.toAmoled(): ColorScheme = copy(
+    // Every container role is black, so no standard component (dialog, menu, switch track,
+    // text field) can paint a grey underlay.
     background = Color.Black,
     surface = Color.Black,
+    surfaceVariant = Color.Black,
     surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color.Black,
+    surfaceContainer = Color.Black,
+    surfaceContainerHigh = Color.Black,
+    surfaceContainerHighest = Color.Black,
+    surfaceBright = Color.Black,
+    surfaceDim = Color.Black,
 )
 
 private fun ColorScheme.toUltraColors() = UltraColors(
     background = Color.Black,
     // No grey underlays: every block lies directly on the AMOLED black.
     card = Color.Black,
-    border = outlineVariant,
-    bar = surfaceContainerLow,
+    border = outlineVariant.copy(alpha = 0.7f),
+    bar = Color(0xFF101012),
     accent = primary,
     accentContainer = primaryContainer,
     good = Color(0xFF86D99C),
@@ -98,10 +107,10 @@ private fun neonScheme(c: UltraColors) = darkColorScheme(
     surfaceVariant = c.card,
     onSurfaceVariant = c.textDim,
     surfaceContainerLowest = c.background,
-    surfaceContainerLow = c.bar,
-    surfaceContainer = c.card,
-    surfaceContainerHigh = c.card,
-    surfaceContainerHighest = c.border,
+    surfaceContainerLow = c.background,
+    surfaceContainer = c.background,
+    surfaceContainerHigh = c.background,
+    surfaceContainerHighest = c.background,
     outline = c.border,
     outlineVariant = c.border,
     error = c.bad,

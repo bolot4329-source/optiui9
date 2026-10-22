@@ -32,7 +32,7 @@ object UltraPalette {
 val NeonColors = UltraColors(
     background = Color(0xFF000000),
     card = Color(0xFF000000),
-    border = Color(0xFF1E1E24),
+    border = Color(0xFF23262E),
     bar = Color(0xFF09090B),
     accent = Color(0xFF00E5FF),
     accentContainer = Color(0xFF00363D),

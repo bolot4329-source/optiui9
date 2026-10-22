@@ -1,5 +1,6 @@
 package com.ultracore.app.ui.screens
 
+import com.ultracore.app.ui.components.UltraDialogModifier
 import com.ultracore.app.ui.components.LocalBottomBarInset
 import android.os.Environment
 import androidx.compose.foundation.clickable
@@ -248,6 +249,7 @@ fun SorterScreen(viewModel: SorterViewModel = viewModel()) {
 
     undoTarget?.let { batch ->
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { undoTarget = null },
             containerColor = CardBlack,
             title = { Text("Откатить сортировку?", color = TextPrimary) },
@@ -271,6 +273,7 @@ fun SorterScreen(viewModel: SorterViewModel = viewModel()) {
 
     if (confirmReset) {
         AlertDialog(
+            modifier = UltraDialogModifier,
             onDismissRequest = { confirmReset = false },
             containerColor = CardBlack,
             title = { Text("Сбросить правила?", color = TextPrimary) },
@@ -477,6 +480,7 @@ private fun RuleEditorDialog(
     var error by remember(initial.id) { mutableStateOf<String?>(null) }
 
     AlertDialog(
+        modifier = UltraDialogModifier,
         onDismissRequest = onDismiss,
         containerColor = CardBlack,
         title = { Text(if (isNew) "Новое правило" else "Правило", color = TextPrimary) },
