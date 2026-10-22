@@ -51,7 +51,7 @@ fun AppIcon(packageName: String, size: Dp = 36.dp) {
                         @Suppress("DEPRECATION")
                         pm.getApplicationInfo(packageName, flags)
                     }
-                    info.loadIcon(pm).toBitmap(px, px).asImageBitmap()
+                    info.loadIcon(pm).toBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
                 }.getOrNull()
             }
             if (loaded != null) {

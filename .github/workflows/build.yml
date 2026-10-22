@@ -35,22 +35,27 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '8.10.2'
-          cache-read-only: false
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
  
-      - name: 5a. Decode release key (only if the secret is set)
+      - name: 5a. Decode release key (only if all secrets are set)
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ] && [ -n "$RELEASE_STORE_PASSWORD" ] && [ -n "$RELEASE_KEY_ALIAS" ] && [ -n "$RELEASE_KEY_PASSWORD" ]; then
             echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ultracore-release.jks"
+            # A broken secret must fail here, not produce an empty keystore.
+            test -s "$RUNNER_TEMP/ultracore-release.jks"
             echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/ultracore-release.jks" >> "$GITHUB_ENV"
             echo "Release key: real key from secrets"
           else
             if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-              echo "::error::A public release must be signed with the real key: add the RELEASE_* secrets first"
+              echo "::error::A public release must be signed with the real key: add all four RELEASE_* secrets first"
               exit 1
             fi
-            echo "::warning::RELEASE_KEYSTORE_BASE64 is not set: release APK is signed with the public debug key"
+            echo "::warning::RELEASE_* secrets are not fully set: release APK is signed with the public debug key"
           fi
 
       - name: 5. Build Debug and Release APKs
@@ -63,7 +68,9 @@ jobs:
       - name: 6. Rename APK with Commit SHA
         run: |
           mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/UltraCore-debug-${GITHUB_SHA::7}.apk"
-          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/UltraCore-${GITHUB_SHA::7}.apk"
+          # Tag builds are named by version (UltraCore-v2.3.0.apk), others by commit.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then NAME="$GITHUB_REF_NAME"; else NAME="${GITHUB_SHA::7}"; fi
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/UltraCore-$NAME.apk"
  
       - name: 7. Upload APK Artifact
         uses: actions/upload-artifact@v6

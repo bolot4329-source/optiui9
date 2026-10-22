@@ -239,6 +239,8 @@ fun rememberPowerSaveMode(): Boolean {
             android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        // The mode may have changed between remember {} and registration.
+        saver = power?.isPowerSaveMode == true
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
     return saver

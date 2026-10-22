@@ -30,3 +30,13 @@
 
 # Readable crash stack traces.
 -keepattributes SourceFile, LineNumberTable
+
+# Enums: keep constant names (safe if a value is ever stored or read by name).
+-keepclassmembers enum com.ultracore.app.** {
+    <fields>;
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+# Our @Serializable models with their synthetic constructors (JSON stores and the export profile).
+-keepattributes RuntimeVisibleAnnotations, AnnotationDefault
+-keep,includedescriptorclasses @kotlinx.serialization.Serializable class com.ultracore.app.** { *; }

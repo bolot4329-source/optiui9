@@ -134,26 +134,27 @@ fun UltraCoreRoot(viewModel: MainViewModel = viewModel()) {
     LaunchedEffect(currentRoute) { headerHidden = false }
     val density = LocalDensity.current
     val hideConnection = remember(density) {
-        val threshold = with(density) { 24.dp.toPx() }
+        val threshold = with(density) { 40.dp.toPx() }
         object : NestedScrollConnection {
             private var accumulated = 0f
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val dy = available.y
+
+            // Counts only what the list really scrolled: a list that barely overflows (or cannot
+            // scroll at all) never hides the header, so the layout cannot jump back and forth.
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                val dy = consumed.y
                 if ((dy < 0f && accumulated > 0f) || (dy > 0f && accumulated < 0f)) accumulated = 0f
                 accumulated += dy
-                if (accumulated < -threshold) {
-                    headerHidden = true
-                    accumulated = 0f
-                } else if (accumulated > threshold) {
-                    headerHidden = false
-                    accumulated = 0f
+                when {
+                    accumulated < -threshold -> {
+                        headerHidden = true
+                        accumulated = 0f
+                    }
+                    accumulated > threshold || available.y > 0f -> {
+                        // Scrolled back up, or pulled down at the very top: show the header.
+                        headerHidden = false
+                        accumulated = 0f
+                    }
                 }
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                // Pulled down at the very top of a list: always show the header.
-                if (available.y > 0f) headerHidden = false
                 return Offset.Zero
             }
         }

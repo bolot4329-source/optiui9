@@ -218,19 +218,28 @@ class BatteryRepository(context: Context) {
         @Volatile
         private var microAmps: Boolean? = null
 
+        /** Discharge readings in a row that looked like mA; one odd reading (e.g. right after unplugging) is not enough. */
+        @Volatile
+        private var smallDischargeReadings = 0
+
         /**
          * BATTERY_PROPERTY_CURRENT_NOW must be in µA, but some firmware reports mA.
          * - |value| ≥ 10 000 can only be µA (nobody draws or charges 10 A);
-         * - discharging with the app on screen draws at least tens of mA, so |value| < 5 000 then means mA.
+         * - discharging with the app on screen draws at least tens of mA, so 50…4 999 three times in a row means mA.
          * Until one of these is seen, the old rule is used.
          */
         internal fun isMicroAmps(now: Int, average: Int, discharging: Boolean): Boolean {
-            val avg = if (average == Int.MIN_VALUE) 0 else abs(average)
+            val n = if (now == Int.MIN_VALUE) 0L else abs(now.toLong())
+            val avg = if (average == Int.MIN_VALUE) 0L else abs(average.toLong())
             when {
-                abs(now) >= 10_000 || avg >= 10_000 -> microAmps = true
-                discharging && abs(now) < 5_000 && avg < 5_000 && microAmps == null -> microAmps = false
+                n >= 10_000L || avg >= 10_000L -> microAmps = true
+                microAmps == null && discharging && n in 50L..4_999L && (avg == 0L || avg in 50L..4_999L) -> {
+                    smallDischargeReadings++
+                    if (smallDischargeReadings >= 3) microAmps = false
+                }
+                else -> smallDischargeReadings = 0
             }
-            return microAmps ?: (abs(now) >= 10_000)
+            return microAmps ?: (n >= 10_000L)
         }
         private const val PLUGGED_DOCK = 8 // BatteryManager.BATTERY_PLUGGED_DOCK (API 33)
 
