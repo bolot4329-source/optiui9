@@ -1,5 +1,13 @@
 # UltraCore
 
+<p align="center">
+  <a href="https://bolot4329-source.github.io/optiui9/promo/">
+    <img src="docs/screenshots/promo.gif" width="720" alt="UltraCore — промо-ролик">
+  </a>
+  <br>
+  <sub>▶ <a href="https://bolot4329-source.github.io/optiui9/promo/">Живая версия ролика</a> (16:9 и 9:16) · <a href="docs/promo/ultracore-promo.mp4">MP4</a></sub>
+</p>
+
 Системный набор инструментов для **любого Android-смартфона** (Android 15, 16, 17 и новее; запускается и на 12–14). Работает через [Shizuku](https://shizuku.rikka.app/), **без Root**. Кода под конкретные марки нет: приложение само проверяет, что разрешено на вашем телефоне, и честно показывает ✅ работает / ⚠️ частично / 🔒 недоступно.
 
 <p>
